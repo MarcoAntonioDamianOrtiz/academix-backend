@@ -12,12 +12,54 @@ import { z } from "zod";
  *    ejecución.
  */
 
+const originSchema = z
+  .string()
+  .url()
+  .refine((value) => {
+    const url = new URL(value);
+
+    return (
+      ["http:", "https:"].includes(url.protocol) &&
+      url.origin === value &&
+      !url.username &&
+      !url.password
+    );
+  }, "Debe ser un origen HTTP/HTTPS sin rutas, consultas ni credenciales.");
+
+export function parseFrontendOrigins(value: string): string[] {
+  const origins = value
+    .split(",")
+    .map((origin) => origin.trim().replace(/\/$/, ""))
+    .filter(Boolean);
+
+  const parsed = z.array(originSchema).min(1).safeParse(origins);
+
+  if (!parsed.success) {
+    throw new Error(
+      "FRONTEND_URL debe contener una o más URLs válidas separadas por comas."
+    );
+  }
+
+  return [...new Set(parsed.data)];
+}
+
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   FRONTEND_URL: z
     .string({ required_error: "FRONTEND_URL es obligatoria (se usa para configurar CORS)." })
-    .url("FRONTEND_URL debe ser una URL válida, ej. http://localhost:5173"),
+    .min(1)
+    .refine(
+      (value) => {
+        try {
+          parseFrontendOrigins(value);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      "FRONTEND_URL debe contener URLs válidas separadas por comas."
+    ),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -32,4 +74,5 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+export const frontendOrigins = parseFrontendOrigins(env.FRONTEND_URL);
 export const isProduction = env.NODE_ENV === "production";

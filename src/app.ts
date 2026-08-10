@@ -1,7 +1,7 @@
 import cors from "cors";
 import express, { type Express } from "express";
 import helmet from "helmet";
-import { env } from "./config/env";
+import { corsOptions } from "./config/cors";
 import { errorHandler } from "./middleware/error-handler";
 import { notFound } from "./middleware/not-found";
 import apiRoutes from "./routes";
@@ -14,13 +14,15 @@ import apiRoutes from "./routes";
 export function createApp(): Express {
   const app = express();
 
+  app.disable("x-powered-by");
+
   // Cabeceras de seguridad básicas (no es autenticación ni autorización,
   // solo buenas prácticas de cabeceras HTTP).
   app.use(helmet());
 
   // Solo el frontend autorizado puede llamar a esta API desde el navegador.
   // FRONTEND_URL es obligatoria (ver config/env.ts): nunca usamos "*".
-  app.use(cors({ origin: env.FRONTEND_URL }));
+  app.use(cors(corsOptions));
 
   // Body parser JSON con límite de payload para evitar solicitudes
   // maliciosas o accidentales de tamaño excesivo.

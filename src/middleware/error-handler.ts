@@ -1,5 +1,8 @@
 import type { NextFunction, Request, Response } from "express";
+import { ZodError } from "zod";
 import { isProduction } from "../config/env";
+import { AppError } from "../errors/app-error";
+import type { ApiErrorFields } from "../types/api.types";
 import { errorResponse } from "../utils/api-response";
 
 /**
@@ -18,6 +21,37 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ): void {
+  if (err instanceof AppError) {
+    res.status(err.status).json(errorResponse(err.code, err.message, err.fields));
+    return;
+  }
+
+  if (err instanceof ZodError) {
+    const fields: ApiErrorFields = {};
+
+    for (const issue of err.issues) {
+      const field = issue.path.join(".") || "request";
+      const current = fields[field];
+      fields[field] = current
+        ? Array.isArray(current)
+          ? [...current, issue.message]
+          : [current, issue.message]
+        : issue.message;
+    }
+
+    res
+      .status(422)
+      .json(errorResponse("VALIDATION_ERROR", "Los datos enviados no son válidos.", fields));
+    return;
+  }
+
+  if (isInvalidJsonError(err)) {
+    res
+      .status(400)
+      .json(errorResponse("INVALID_JSON", "El cuerpo de la solicitud no contiene JSON válido."));
+    return;
+  }
+
   if (!isProduction) {
     console.error("[error]", err);
   }
@@ -25,4 +59,12 @@ export function errorHandler(
   res
     .status(500)
     .json(errorResponse("INTERNAL_SERVER_ERROR", "Ocurrió un error interno."));
+}
+
+function isInvalidJsonError(error: unknown): boolean {
+  return (
+    error instanceof SyntaxError &&
+    "type" in error &&
+    (error as SyntaxError & { type?: string }).type === "entity.parse.failed"
+  );
 }
