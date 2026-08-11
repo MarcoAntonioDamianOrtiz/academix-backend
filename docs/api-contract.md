@@ -156,6 +156,35 @@ El perfil tiene esta forma:
 requiere al menos un campo y nunca acepta el ID, correo o rol enviados por el
 navegador.
 
+## Administración e instructores
+
+Las rutas `/admin/*` requieren `Authorization: Bearer` y rol `admin`. Las rutas
+`/instructor/*` requieren rol `instructor`. El rol se vuelve a leer desde
+Supabase durante la validación del JWT.
+
+| Método | Ruta | Rol | Operación |
+|---|---|---|---|
+| GET | `/admin/users?search=&role=&page=1&limit=20` | admin | Usuarios y roles activos. |
+| PATCH | `/admin/users/:userId/roles` | admin | Reemplaza roles con `{ roles: AppRole[] }`. |
+| GET | `/admin/instructors` | admin | Lista perfiles de instructor. |
+| PUT | `/admin/instructors/:userId` | admin | Crea/actualiza `{ specialty, experienceYears }`. |
+| POST | `/admin/categories` | admin | Crea categoría activa. |
+| PATCH | `/admin/categories/:categoryId` | admin | Actualiza o desactiva categoría. |
+| GET | `/admin/course-options` | admin | Categorías, niveles, modalidades, idiomas y estados. |
+| GET, POST | `/admin/courses` | admin | Lista o crea un borrador. |
+| PATCH | `/admin/courses/:courseId` | admin | Actualiza un curso no archivado. |
+| PUT | `/admin/courses/:courseId/instructor` | admin | Asigna `{ instructorId }` como principal. |
+| POST | `/admin/courses/:courseId/publish` | admin | Publica un curso en revisión y completo. |
+| POST | `/admin/courses/:courseId/archive` | admin | Archivado lógico, sin borrar datos. |
+| GET | `/instructor/courses` | instructor | Cursos asignados. |
+| PATCH | `/instructor/courses/:courseId` | instructor | Edita solo su borrador asignado. |
+| POST | `/instructor/courses/:courseId/submit` | instructor | Envía borrador a revisión. |
+
+`AppRole` admite `student`, `instructor` y `admin`. Los estados son `draft`,
+`review`, `published` y `archived`. El backend protege al último administrador,
+impide publicar sin instructor, descripciones y objetivos, y usa `409` cuando
+el estado cambió de forma concurrente.
+
 ## Aula y progreso
 
 `GET /users/me/courses/:courseId/learning` es el endpoint agregado requerido

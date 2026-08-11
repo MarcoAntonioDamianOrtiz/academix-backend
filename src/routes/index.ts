@@ -1,7 +1,9 @@
 import { Router } from "express";
 import authRoutes from "./auth.routes";
+import administrationRoutes from "./administration.routes";
 import catalogRoutes from "./catalog.routes";
 import healthRoutes from "./health.routes";
+import instructorRoutes from "./instructor.routes";
 import profileRoutes from "./profile.routes";
 
 /**
@@ -14,6 +16,8 @@ const router = Router();
 
 router.use(healthRoutes);
 router.use("/auth", authRoutes);
+router.use("/admin", administrationRoutes);
+router.use("/instructor", instructorRoutes);
 router.use(catalogRoutes);
 router.use("/users", profileRoutes);
 

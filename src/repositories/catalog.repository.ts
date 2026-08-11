@@ -237,6 +237,7 @@ async function hydrateCourses(rows: CourseRow[]): Promise<CatalogCourseRecord[]>
       .from("cursos_instructores")
       .select("fk_curso,fk_usuario")
       .in("fk_curso", courseIds)
+      .eq("activo", true)
       .eq("instructor_principal", true),
   ]);
 
@@ -263,6 +264,7 @@ async function hydrateCourses(rows: CourseRow[]): Promise<CatalogCourseRecord[]>
         .from("perfiles_instructores")
         .select("fk_usuario,especialidad,anios_experiencia")
         .in("fk_usuario", userIds)
+        .eq("activo", true)
     : Promise.resolve({ data: [], error: null });
 
   const [usersResult, profilesResult] = await Promise.all([usersPromise, profilesPromise]);
@@ -502,6 +504,7 @@ export const catalogRepository: CatalogRepository = {
         .from("perfiles_instructores")
         .select("fk_usuario,especialidad,anios_experiencia")
         .eq("fk_usuario", instructorId)
+        .eq("activo", true)
         .maybeSingle(),
     ]);
     if (userResult.error || profileResult.error) throw databaseFailure();
@@ -539,7 +542,8 @@ export const catalogRepository: CatalogRepository = {
     const assignmentsResult = await supabaseAdmin
       .from("cursos_instructores")
       .select("fk_curso")
-      .eq("fk_usuario", instructorId);
+      .eq("fk_usuario", instructorId)
+      .eq("activo", true);
     if (assignmentsResult.error) throw databaseFailure();
 
     const courseIds = unique(

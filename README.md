@@ -66,6 +66,7 @@ Ningún otro archivo accede a `process.env` directamente.
 | `npm run lint` | Corre ESLint sobre todo el proyecto. |
 | `npm run test` | Corre las pruebas con Vitest. **No requiere `.env`**: `vitest.config.ts` inyecta variables de entorno seguras solo para la ejecución de pruebas (ver más abajo). |
 | `npm run test:watch` | Mantiene Vitest observando cambios durante el desarrollo. |
+| `npm run admin:bootstrap -- --email correo` | Asigna una sola vez el primer Administrador a una cuenta ya registrada. |
 | `npm run check` | Ejecuta lint, typecheck, pruebas y build en ese orden. |
 
 ## Ejecución en desarrollo
@@ -209,6 +210,41 @@ sesión; no significan acceso directo a las tablas de Supabase. Solo se muestran
 cursos activos y publicados. Hasta que se carguen cursos e instructores reales,
 las colecciones correspondientes responden vacías.
 
+## Administración de roles y cursos
+
+Todas las rutas siguientes requieren JWT y rol `admin` obtenido de la base de
+datos; el backend nunca acepta el rol enviado por React.
+
+| Método | Ruta |
+|---|---|
+| `GET` | `/api/v1/admin/users` |
+| `PATCH` | `/api/v1/admin/users/:userId/roles` |
+| `GET` | `/api/v1/admin/instructors` |
+| `PUT` | `/api/v1/admin/instructors/:userId` |
+| `POST`, `PATCH` | `/api/v1/admin/categories`, `/api/v1/admin/categories/:categoryId` |
+| `GET` | `/api/v1/admin/course-options` |
+| `GET`, `POST` | `/api/v1/admin/courses` |
+| `PATCH` | `/api/v1/admin/courses/:courseId` |
+| `PUT` | `/api/v1/admin/courses/:courseId/instructor` |
+| `POST` | `/api/v1/admin/courses/:courseId/publish` |
+| `POST` | `/api/v1/admin/courses/:courseId/archive` |
+
+El instructor dispone de `GET /api/v1/instructor/courses`,
+`PATCH /api/v1/instructor/courses/:courseId` y
+`POST /api/v1/instructor/courses/:courseId/submit`. Solo puede modificar un
+borrador que tenga asignado. Publicar y archivar son operaciones de
+administrador y los cambios sensibles quedan auditados.
+
+Para crear el primer administrador, registra previamente la cuenta y ejecuta:
+
+```bash
+npm run admin:bootstrap -- --email admin@ejemplo.com
+```
+
+El comando no crea usuarios ni contraseñas y deja de funcionar en cuanto ya
+existe un administrador activo. Las asignaciones posteriores se realizan por
+la API; tampoco es posible retirar al último administrador.
+
 ### Cualquier ruta no existente
 
 ```bash
@@ -276,6 +312,10 @@ Las migraciones `secure_backend_only_data_api` y `extend_profiles_catalog`
 extienden esa protección a las 36 tablas públicas, agregan perfiles de
 instructores, slugs e índices del catálogo. El inventario verificado está en
 [`docs/database-inventory.md`](docs/database-inventory.md).
+
+`admin_roles_course_workflow` agrega autorización administrativa, auditoría,
+restricciones de integridad y el ciclo `draft → review → published/archived`
+sin recrear tablas ni eliminar datos.
 
 ## Fases siguientes
 
