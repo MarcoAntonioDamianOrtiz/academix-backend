@@ -162,6 +162,14 @@ export function createAdministrationService(repository: AdministrationRepository
           "El curso requiere instructor, descripciones y objetivos antes de publicarse."
         );
       }
+      const content = await repository.courseContentStats(courseId);
+      if (content.modules === 0 || content.lessons === 0) {
+        throw new AppError(
+          422,
+          "COURSE_CONTENT_REQUIRED",
+          "El curso requiere al menos un módulo y una lección activos antes de publicarse."
+        );
+      }
       const updated = await repository.transitionCourse(courseId, "review", "published", actorId);
       if (!updated) throw new AppError(409, "COURSE_STATE_CHANGED", "El curso cambió de estado.");
       return updated;

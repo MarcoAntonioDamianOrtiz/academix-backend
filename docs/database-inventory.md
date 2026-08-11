@@ -1,4 +1,4 @@
-# Inventario de Supabase — Fase 3
+# Inventario de Supabase — Fase 5
 
 Proyecto inspeccionado: `academix` (`kosvorqvtwbajfkyvsne`). El esquema
 `public` contiene 36 tablas después de esta fase. La migración es incremental:
@@ -56,6 +56,35 @@ migración confirmó las cuatro concesiones y ninguna exposición pública.
 - El último administrador no puede perder su rol y los cursos no se eliminan:
   pasan al estado `Archivado`.
 
+## Cambios de la Fase 4
+
+- `inscripciones` y `progreso_lecciones` conservan su modelo y reciben fecha
+  de actualización automática.
+- Restricciones validan montos no negativos, fechas y porcentajes entre 0 y
+  100 con consistencia entre `completada` y `fecha_completado`.
+- Índices compuestos cubren biblioteca del usuario, progreso de la inscripción
+  y búsquedas por lección.
+- `academix_enroll_user` crea o reactiva una inscripción de forma atómica.
+- `academix_set_lesson_progress` usa UPSERT, valida pertenencia y finaliza o
+  reactiva automáticamente la inscripción.
+- Ambas funciones son `SECURITY INVOKER`, sin ejecución para `anon`,
+  `authenticated` ni `PUBLIC`; únicamente `service_role` puede llamarlas.
+
+## Cambios de la Fase 5
+
+- Se creó el bucket privado `academix-course-content`, con límite de 25 MB y
+  lista explícita de MIME permitidos.
+- `modulos`, `lecciones` y `recursos` registran creación, actualización y
+  actores responsables; `archivos` registra curso, uploader y SHA-256.
+- Posiciones, duración, tamaño, hash y origen único URL/archivo tienen
+  restricciones de integridad.
+- Índices parciales cubren árboles activos, actores y claves foráneas de
+  recursos/archivos.
+- Triggers actualizan timestamps, auditan cambios y bloquean escrituras de
+  contenido cuando el curso está publicado o archivado.
+- `anon`, `authenticated` y `PUBLIC` siguen sin acceso directo. Express usa
+  `service_role` y descarga desde Storage solo después de autorizar al usuario.
+
 Los índices nuevos cubren los filtros iniciales del catálogo y las claves
 foráneas que usa esta fase. Los avisos de índices sin uso se conservaron porque
 las tablas de negocio aún están vacías y no existe tráfico representativo.
@@ -68,3 +97,6 @@ las tablas de negocio aún están vacías y no existe tráfico representativo.
 | `20260811172558` | `secure_backend_only_data_api` |
 | `20260811172617` | `extend_profiles_catalog` |
 | `20260811180231` | `admin_roles_course_workflow` |
+| `20260811194429` | `student_enrollments_progress` |
+| `20260811194549` | `index_enrollment_foreign_keys` |
+| `20260811201127` | `course_content_authoring_storage` |

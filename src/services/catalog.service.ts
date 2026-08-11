@@ -27,7 +27,7 @@ function textList(value: string | null): string[] {
     .filter(Boolean);
 }
 
-function summary(record: CatalogCourseRecord): CourseSummary | null {
+export function serializeCourseSummary(record: CatalogCourseRecord): CourseSummary | null {
   if (!record.instructor) return null;
   return {
     id: record.id,
@@ -69,7 +69,9 @@ export function createCatalogService(repository: CatalogRepository) {
     async listCourses(input: CourseListQuery) {
       const result = await repository.listCourses(input);
       return {
-        items: result.records.map(summary).filter((item): item is CourseSummary => item !== null),
+        items: result.records
+          .map(serializeCourseSummary)
+          .filter((item): item is CourseSummary => item !== null),
         pagination: {
           page: input.page,
           limit: input.limit,
@@ -84,7 +86,7 @@ export function createCatalogService(repository: CatalogRepository) {
       if (!record) {
         throw new AppError(404, "COURSE_NOT_FOUND", "El curso solicitado no existe.");
       }
-      const courseSummary = summary(record);
+      const courseSummary = serializeCourseSummary(record);
       if (!courseSummary) {
         throw new AppError(
           500,
@@ -103,7 +105,7 @@ export function createCatalogService(repository: CatalogRepository) {
         modules: record.modules,
         reviews: [],
         relatedCourseIds: related
-          .map(summary)
+          .map(serializeCourseSummary)
           .filter((item): item is CourseSummary => item !== null)
           .map((item) => item.id),
       };
@@ -115,7 +117,9 @@ export function createCatalogService(repository: CatalogRepository) {
         throw new AppError(404, "COURSE_NOT_FOUND", "El curso solicitado no existe.");
       }
       const records = await repository.listRelatedCourses(course.id, course.categoryId);
-      return records.map(summary).filter((item): item is CourseSummary => item !== null);
+      return records
+        .map(serializeCourseSummary)
+        .filter((item): item is CourseSummary => item !== null);
     },
 
     async getInstructor(instructorId: string): Promise<InstructorDetail> {
@@ -141,7 +145,9 @@ export function createCatalogService(repository: CatalogRepository) {
         throw new AppError(404, "INSTRUCTOR_NOT_FOUND", "El instructor solicitado no existe.");
       }
       const records = await repository.listInstructorCourses(instructorId);
-      return records.map(summary).filter((item): item is CourseSummary => item !== null);
+      return records
+        .map(serializeCourseSummary)
+        .filter((item): item is CourseSummary => item !== null);
     },
   };
 }

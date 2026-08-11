@@ -65,6 +65,19 @@ describe("errores y respuestas compartidas", () => {
     expect(response.body.error.code).toBe("FORBIDDEN");
   });
 
+  it("responde 413 cuando el parser rechaza un archivo demasiado grande", async () => {
+    const app = express();
+    app.get("/too-large", (_req, _res, next) => {
+      next(Object.assign(new Error("too large"), { type: "entity.too.large" }));
+    });
+    app.use(errorHandler);
+
+    const response = await request(app).get("/too-large");
+
+    expect(response.status).toBe(413);
+    expect(response.body.error.code).toBe("PAYLOAD_TOO_LARGE");
+  });
+
   it("construye el sobre paginado esperado por el frontend", () => {
     expect(
       paginatedResponse([{ id: "course-1" }], {

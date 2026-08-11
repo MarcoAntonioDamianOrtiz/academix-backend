@@ -114,6 +114,7 @@ export interface AdministrationRepository {
     actorUserId: string
   ): Promise<void>;
   isInstructorAssigned(courseId: string, instructorId: string): Promise<boolean>;
+  courseContentStats(courseId: string): Promise<{ modules: number; lessons: number }>;
   transitionCourse(
     courseId: string,
     currentStatus: CourseWorkflowStatus,
@@ -817,6 +818,26 @@ export const administrationRepository: AdministrationRepository = {
       .maybeSingle();
     if (error) throw mappedDatabaseError(error);
     return Boolean(data);
+  },
+
+  async courseContentStats(courseId) {
+    const { data: modulesData, error: modulesError, count: moduleCount } = await supabaseAdmin
+      .from("modulos")
+      .select("id_modulo", { count: "exact" })
+      .eq("fk_curso", courseId)
+      .eq("activo", true);
+    if (modulesError) throw mappedDatabaseError(modulesError);
+    const moduleIds = ((modulesData ?? []) as Array<{ id_modulo: string }>).map(
+      (row) => row.id_modulo
+    );
+    if (moduleIds.length === 0) return { modules: 0, lessons: 0 };
+    const { count: lessonCount, error: lessonsError } = await supabaseAdmin
+      .from("lecciones")
+      .select("id_leccion", { count: "exact", head: true })
+      .in("fk_modulo", moduleIds)
+      .eq("activo", true);
+    if (lessonsError) throw mappedDatabaseError(lessonsError);
+    return { modules: moduleCount ?? moduleIds.length, lessons: lessonCount ?? 0 };
   },
 
   async transitionCourse(courseId, currentStatus, nextStatus, actorUserId) {

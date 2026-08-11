@@ -52,6 +52,13 @@ export function errorHandler(
     return;
   }
 
+  if (isPayloadTooLargeError(err)) {
+    res
+      .status(413)
+      .json(errorResponse("PAYLOAD_TOO_LARGE", "El cuerpo de la solicitud supera el límite permitido."));
+    return;
+  }
+
   if (!isProduction) {
     console.error("[error]", err);
   }
@@ -59,6 +66,14 @@ export function errorHandler(
   res
     .status(500)
     .json(errorResponse("INTERNAL_SERVER_ERROR", "Ocurrió un error interno."));
+}
+
+function isPayloadTooLargeError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "type" in error &&
+    (error as Error & { type?: string }).type === "entity.too.large"
+  );
 }
 
 function isInvalidJsonError(error: unknown): boolean {

@@ -32,6 +32,7 @@ function repository(overrides: Partial<CatalogRepository> = {}): CatalogReposito
   return {
     listCategories: vi.fn().mockResolvedValue([]),
     listCourses: vi.fn().mockResolvedValue({ records: [], total: 0 }),
+    listCoursesByIds: vi.fn().mockResolvedValue([]),
     findCourse: vi.fn().mockResolvedValue(null),
     listRelatedCourses: vi.fn().mockResolvedValue([]),
     findInstructor: vi.fn().mockResolvedValue(null),

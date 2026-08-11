@@ -245,6 +245,43 @@ El comando no crea usuarios ni contraseñas y deja de funcionar en cuanto ya
 existe un administrador activo. Las asignaciones posteriores se realizan por
 la API; tampoco es posible retirar al último administrador.
 
+## Inscripciones, aula y progreso
+
+Estas rutas requieren un JWT válido y siempre obtienen el usuario desde el
+token, nunca desde el cuerpo enviado por React:
+
+| Método | Ruta | Resultado |
+|---|---|---|
+| `POST` | `/api/v1/courses/:courseId/enrollments` | Inscribe al usuario actual. |
+| `GET` | `/api/v1/users/me/courses` | Devuelve su biblioteca y progreso. |
+| `GET` | `/api/v1/users/me/courses/:courseId/learning` | Devuelve módulos, lecciones y avance. |
+| `PATCH` | `/api/v1/lessons/:lessonId/progress` | Marca o desmarca `{ completed }`. |
+
+Solo se permite la inscripción automática a cursos gratuitos, publicados,
+activos y sin aprobación manual. Los pagos y las aprobaciones se rechazan con
+un error explícito hasta que sus flujos sean implementados. La inscripción y
+el progreso usan funciones atómicas de PostgreSQL; al completar todas las
+lecciones activas, la inscripción cambia automáticamente a `completed`.
+
+La guía de validación manual de esta fase está en
+[`docs/phase-4-validation.md`](docs/phase-4-validation.md).
+
+## Autoría de contenido y archivos privados
+
+La Fase 5 agrega módulos, lecciones, contenido textual, recursos externos y
+archivos de curso. Administradores e instructores autorizados usan únicamente
+`/api/v1/authoring/*`; las cargas binarias pasan por Express y se almacenan en
+el bucket privado `academix-course-content` con un límite de 25 MB y tipos MIME
+permitidos.
+
+Los alumnos reciben contenido dentro del aula y descargan archivos mediante
+`GET /api/v1/lessons/:lessonId/resources/:resourceId/content`. El backend
+comprueba la inscripción y actúa como proxy: React nunca recibe la clave
+secreta, la ruta interna ni una URL directa de Supabase Storage.
+
+La guía de prueba manual está en
+[`docs/phase-5-validation.md`](docs/phase-5-validation.md).
+
 ### Cualquier ruta no existente
 
 ```bash
@@ -317,10 +354,19 @@ instructores, slugs e índices del catálogo. El inventario verificado está en
 restricciones de integridad y el ciclo `draft → review → published/archived`
 sin recrear tablas ni eliminar datos.
 
+`student_enrollments_progress` agrega integridad, índices y operaciones
+atómicas para la biblioteca y el progreso, manteniendo las tablas inaccesibles
+para el frontend.
+
+`course_content_authoring_storage` agrega auditoría y reglas de integridad al
+contenido, crea el bucket privado y bloquea cambios en cursos publicados o
+archivados sin eliminar datos existentes.
+
 ## Fases siguientes
 
 1. ~~Seguridad backend-only, perfiles y catálogo inicial.~~
-2. **Administración de cursos, instructores y autorización por rol.**
-3. **Inscripciones, aula y progreso.**
-4. **Reseñas y certificados.**
-5. **Integración completa con el frontend y despliegue.**
+2. ~~Administración de cursos, instructores y autorización por rol.~~
+3. ~~Inscripciones, aula y progreso.~~
+4. ~~Autoría de contenido y archivos privados.~~
+5. **Reseñas y certificados.**
+6. **Integración completa con el frontend y despliegue.**

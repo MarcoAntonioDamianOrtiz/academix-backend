@@ -138,6 +138,24 @@ Una inscripción duplicada responde `409 ENROLLMENT_ALREADY_EXISTS`. El
 backend determina el usuario desde el token y aplica una restricción única por
 `user_id + course_id`.
 
+La inscripción automática solo admite cursos publicados, gratuitos y que no
+requieran aprobación. Los cursos de pago responden `422 PAYMENT_NOT_AVAILABLE`
+y los que requieren revisión, `422 COURSE_REQUIRES_APPROVAL`.
+
+`EnrollmentSummary` coincide con el contrato del frontend:
+
+```json
+{
+  "id": "uuid",
+  "course": { "id": "uuid", "title": "TypeScript", "slug": "typescript" },
+  "status": "in_progress",
+  "progressPercentage": 50,
+  "completedLessons": 2,
+  "totalLessons": 4,
+  "lastAccessedAt": "2026-08-11T18:00:00.000Z"
+}
+```
+
 El perfil tiene esta forma:
 
 ```json
@@ -185,6 +203,36 @@ Supabase durante la validación del JWT.
 impide publicar sin instructor, descripciones y objetivos, y usa `409` cuando
 el estado cambió de forma concurrente.
 
+Además, publicar requiere por lo menos un módulo y una lección activos. Si no
+existen responde `422 COURSE_CONTENT_REQUIRED`.
+
+## Autoría y archivos de curso
+
+Las rutas `/authoring/*` requieren JWT y rol `admin` o `instructor`. El
+administrador puede trabajar en cursos `draft` y `review`; el instructor solo
+en su propio curso asignado mientras siga en `draft`.
+
+| Método | Ruta | Operación |
+|---|---|---|
+| GET | `/authoring/resource-options` | Tipos de recurso activos. |
+| GET | `/authoring/courses/:courseId/content` | Árbol completo para edición. |
+| POST | `/authoring/courses/:courseId/modules` | Crea módulo. |
+| PATCH | `/authoring/modules/:moduleId` | Actualiza o desactiva módulo. |
+| POST | `/authoring/modules/:moduleId/lessons` | Crea lección. |
+| PATCH | `/authoring/lessons/:lessonId` | Actualiza o desactiva lección. |
+| POST | `/authoring/lessons/:lessonId/resources` | Crea recurso de URL o archivo. |
+| PATCH | `/authoring/resources/:resourceId` | Actualiza o desactiva recurso. |
+| POST | `/authoring/courses/:courseId/files` | Sube archivo binario privado. |
+
+La carga usa el `Content-Type` real, la cabecera `x-file-name` y un body
+binario de máximo 25 MB. Express calcula SHA-256, asigna un nombre aleatorio y
+lo guarda en el bucket privado `academix-course-content`. Nunca devuelve la
+ruta de Storage al navegador; solo metadatos y el ID del archivo.
+
+Un recurso debe contener exactamente uno de `url` o `fileId`. No se eliminan
+filas: `active: false` aplica desactivación lógica. PostgreSQL también impide
+modificar contenido cuando el curso ya está `published` o `archived`.
+
 ## Aula y progreso
 
 `GET /users/me/courses/:courseId/learning` es el endpoint agregado requerido
@@ -195,12 +243,24 @@ respuesta curso, módulos, lecciones y progreso.
 |---|---|---:|---|
 | GET | `/users/me/courses/:courseId/learning` | Sí | `LearningCourse` |
 | PATCH | `/lessons/:lessonId/progress` | Sí | `null` o `204` |
+| GET | `/lessons/:lessonId/resources/:resourceId/content` | Sí | Archivo binario |
 
 Body de progreso:
 
 ```json
 { "completed": true }
 ```
+
+La actualización devuelve `204`. El backend verifica que la lección esté
+activa, pertenezca al curso de la inscripción y que esta se encuentre activa o
+finalizada. El progreso se guarda mediante UPSERT y al completar todas las
+lecciones cambia la inscripción a `Finalizada`; desmarcar una lección la
+regresa a `Activa`.
+
+Cada lección incluye ahora `content` y `resources`. Para archivos, el backend
+entrega un `contentPath` bajo `/api/v1`; para enlaces externos entrega `url`.
+La descarga valida inscripción activa/finalizada o permisos de autoría y
+responde con `Cache-Control: private, no-store`.
 
 ## Reseñas y certificados
 

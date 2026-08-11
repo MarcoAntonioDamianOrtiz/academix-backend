@@ -45,6 +45,7 @@ function repository(overrides: Partial<AdministrationRepository> = {}): Administ
     updateCourse: vi.fn().mockResolvedValue(course),
     assignPrincipalInstructor: vi.fn().mockResolvedValue(undefined),
     isInstructorAssigned: vi.fn().mockResolvedValue(true),
+    courseContentStats: vi.fn().mockResolvedValue({ modules: 1, lessons: 1 }),
     transitionCourse: vi.fn().mockResolvedValue({ ...course, status: "review" }),
     ...overrides,
   };

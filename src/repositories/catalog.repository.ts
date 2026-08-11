@@ -123,6 +123,7 @@ export interface CatalogCourseRecord {
 export interface CatalogRepository {
   listCategories(): Promise<CatalogCategoryRecord[]>;
   listCourses(input: CourseListQuery): Promise<{ records: CatalogCourseRecord[]; total: number }>;
+  listCoursesByIds(courseIds: string[]): Promise<CatalogCourseRecord[]>;
   findCourse(identifier: string): Promise<CatalogCourseRecord | null>;
   listRelatedCourses(courseId: string, categoryId: number): Promise<CatalogCourseRecord[]>;
   findInstructor(instructorId: string): Promise<CatalogInstructorRecord | null>;
@@ -421,6 +422,12 @@ export const catalogRepository: CatalogRepository = {
   async listCourses(input) {
     const { rows, total } = await publishedRows({ input });
     return { records: await hydrateCourses(rows), total };
+  },
+
+  async listCoursesByIds(courseIds) {
+    if (courseIds.length === 0) return [];
+    const { rows } = await publishedRows({ courseIds: unique(courseIds) });
+    return hydrateCourses(rows);
   },
 
   async findCourse(identifier) {
