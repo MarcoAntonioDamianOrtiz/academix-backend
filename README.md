@@ -11,9 +11,9 @@ autorización y el acceso seguro a Supabase PostgreSQL. `academix-frontend`
 no se conecta directamente a Supabase para autenticación, datos ni reglas
 de negocio: todo pasa por esta API.
 
-La infraestructura HTTP y la integración de **Supabase Auth** ya están
-conectadas. El backend registra e inicia sesiones, valida JWT en cada ruta
-protegida y mantiene las claves de Supabase fuera del frontend.
+La infraestructura HTTP, **Supabase Auth**, perfiles y el catálogo inicial ya
+están conectados. El backend registra e inicia sesiones, valida JWT en cada
+ruta protegida y mantiene las claves de Supabase fuera del frontend.
 
 ## Stack
 
@@ -115,18 +115,22 @@ academix-backend/
 │   │   └── supabase.ts         # clientes Auth y Admin exclusivos del servidor
 │   ├── controllers/
 │   │   ├── auth.controller.ts
+│   │   ├── catalog.controller.ts
+│   │   ├── profile.controller.ts
 │   │   └── health.controller.ts
 │   ├── errors/
 │   │   └── app-error.ts        # errores operativos seguros y tipados
 │   ├── routes/
+│   │   ├── catalog.routes.ts
 │   │   ├── health.routes.ts
+│   │   ├── profile.routes.ts
 │   │   └── index.ts            # registra todos los routers de /api/v1
+│   ├── repositories/            # acceso exclusivo del backend a Supabase
 │   ├── middleware/
 │   │   ├── error-handler.ts    # manejador central de errores (JSON, sin stack trace al cliente)
 │   │   ├── require-auth.ts      # valida Authorization: Bearer con Supabase Auth
 │   │   └── not-found.ts        # 404 en formato JSON consistente
-│   ├── services/
-│   │   └── auth.service.ts      # registro, login, logout y recuperación
+│   ├── services/                # Auth y reglas de perfil/catálogo
 │   ├── types/
 │   │   └── api.types.ts        # éxito, error y paginación compartidos
 │   ├── utils/
@@ -141,8 +145,9 @@ academix-backend/
 └── eslint.config.js
 ```
 
-La capa `services/` contiene únicamente la lógica real de Auth. Los
-repositorios del dominio aparecerán al implementar catálogo, perfiles y aula.
+La capa `services/` contiene reglas de aplicación y transformación al contrato
+del frontend. `repositories/` concentra todas las consultas de datos mediante
+el cliente secreto del servidor.
 
 ## Endpoint disponible
 
@@ -185,6 +190,24 @@ Para proteger cualquier router futuro, agrega `requireAuth` antes del
 controlador. El middleware valida el token contra Supabase Auth y deja la
 identidad verificada en `req.auth`; ningún controlador debe confiar en un ID
 de usuario o rol enviado por el navegador.
+
+## Perfiles y catálogo
+
+| Método | Ruta | Protección |
+|---|---|---|
+| `GET` | `/api/v1/categories` | Pública vía Express |
+| `GET` | `/api/v1/courses` | Pública vía Express |
+| `GET` | `/api/v1/courses/:courseId` | Pública vía Express |
+| `GET` | `/api/v1/courses/:courseId/related` | Pública vía Express |
+| `GET` | `/api/v1/instructors/:instructorId` | Pública vía Express |
+| `GET` | `/api/v1/instructors/:instructorId/courses` | Pública vía Express |
+| `GET` | `/api/v1/users/me` | Bearer token |
+| `PATCH` | `/api/v1/users/me` | Bearer token |
+
+Las rutas públicas significan que el navegador puede llamar a Express sin
+sesión; no significan acceso directo a las tablas de Supabase. Solo se muestran
+cursos activos y publicados. Hasta que se carguen cursos e instructores reales,
+las colecciones correspondientes responden vacías.
 
 ### Cualquier ruta no existente
 
@@ -249,11 +272,15 @@ La migración `setup_auth_profile` crea automáticamente `public.usuarios`,
 asigna el rol `Alumno`, habilita RLS y revoca el acceso directo de los roles
 `anon` y `authenticated` a las tablas de identidad.
 
+Las migraciones `secure_backend_only_data_api` y `extend_profiles_catalog`
+extienden esa protección a las 36 tablas públicas, agregan perfiles de
+instructores, slugs e índices del catálogo. El inventario verificado está en
+[`docs/database-inventory.md`](docs/database-inventory.md).
+
 ## Fases siguientes
 
-1. **Seguridad de datos:** habilitar RLS o revocar Data API en las tablas del
-   dominio que todavía están expuestas.
-2. **Perfiles y catálogo:** categorías, cursos e instructores.
+1. ~~Seguridad backend-only, perfiles y catálogo inicial.~~
+2. **Administración de cursos, instructores y autorización por rol.**
 3. **Inscripciones, aula y progreso.**
 4. **Reseñas y certificados.**
 5. **Integración completa con el frontend y despliegue.**

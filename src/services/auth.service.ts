@@ -23,6 +23,18 @@ function roleName(value: string | undefined): AuthUser["role"] {
   return "student";
 }
 
+function highestRole(
+  roles: Array<{ activo: boolean; roles: { nombre: string } | null }> | undefined
+): AuthUser["role"] {
+  const activeRoles = (roles ?? [])
+    .filter((item) => item.activo)
+    .map((item) => roleName(item.roles?.nombre));
+
+  if (activeRoles.includes("admin")) return "admin";
+  if (activeRoles.includes("instructor")) return "instructor";
+  return "student";
+}
+
 async function serializeUser(user: User): Promise<AuthUser> {
   if (!user.email) {
     throw new AppError(401, "INVALID_USER", "La cuenta no tiene un correo válido.");
@@ -44,7 +56,6 @@ async function serializeUser(user: User): Promise<AuthUser> {
         usuarios_roles: Array<{ activo: boolean; roles: { nombre: string } | null }>;
       }
     | null;
-  const activeRole = profile?.usuarios_roles.find((item) => item.activo)?.roles?.nombre;
   const storedName = profile
     ? [profile.nombres, profile.apellido_paterno, profile.apellido_materno]
         .filter(Boolean)
@@ -56,7 +67,7 @@ async function serializeUser(user: User): Promise<AuthUser> {
     id: user.id,
     fullName: storedName || String(user.user_metadata.full_name ?? user.email.split("@")[0]),
     email: user.email,
-    role: roleName(activeRole),
+    role: highestRole(profile?.usuarios_roles),
   };
 }
 

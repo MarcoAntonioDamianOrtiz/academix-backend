@@ -89,6 +89,42 @@ después iniciar sesión.
 | GET | `/instructors/:instructorId` | No | `InstructorDetail` |
 | GET | `/instructors/:instructorId/courses` | No | `CourseSummary[]` |
 
+`GET /courses` acepta los siguientes parámetros:
+
+| Parámetro | Tipo | Regla |
+|---|---|---|
+| `search` | string | 1–100 caracteres; busca en título y descripción corta. |
+| `category` | slug | Categoría activa, por ejemplo `programacion`. |
+| `level` | enum | `beginner`, `intermediate` o `advanced`. |
+| `page` | integer | Mínimo 1; default 1. |
+| `limit` | integer | Entre 1 y 50; default 12. |
+
+El catálogo solo devuelve cursos activos con estado `Publicado` e instructor
+principal. Mientras la fase de reseñas no esté implementada, `rating` y
+`reviewCount` valen `0`. `related` devuelve hasta cuatro cursos publicados de
+la misma categoría.
+
+```json
+{
+  "id": "uuid",
+  "slug": "typescript-desde-cero",
+  "title": "TypeScript desde cero",
+  "shortDescription": "Aprende a tipar aplicaciones web.",
+  "category": { "id": "1", "name": "Programación", "slug": "programacion" },
+  "instructor": {
+    "id": "uuid",
+    "name": "Ana Pérez",
+    "specialty": "Desarrollo web"
+  },
+  "level": "beginner",
+  "durationHours": 8,
+  "rating": 0,
+  "reviewCount": 0,
+  "price": 0,
+  "certificateEnabled": true
+}
+```
+
 ## Estudiante y perfil
 
 | Método | Ruta | Auth | Respuesta `data` |
@@ -101,6 +137,24 @@ después iniciar sesión.
 Una inscripción duplicada responde `409 ENROLLMENT_ALREADY_EXISTS`. El
 backend determina el usuario desde el token y aplica una restricción única por
 `user_id + course_id`.
+
+El perfil tiene esta forma:
+
+```json
+{
+  "id": "uuid",
+  "fullName": "Ana Pérez",
+  "email": "ana@example.com",
+  "role": "student",
+  "phone": "2461234567",
+  "country": "México",
+  "bio": "Estudiante de Academix."
+}
+```
+
+`PATCH /users/me` permite únicamente `fullName`, `phone`, `country` y `bio`,
+requiere al menos un campo y nunca acepta el ID, correo o rol enviados por el
+navegador.
 
 ## Aula y progreso
 
