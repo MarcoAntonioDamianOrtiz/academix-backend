@@ -15,6 +15,9 @@ export default defineConfig({
       NODE_ENV: "test",
       PORT: "3000",
       FRONTEND_URL: "http://localhost:5173",
+      SUPABASE_URL: "https://example.supabase.co",
+      SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
+      SUPABASE_SECRET_KEY: "sb_secret_test",
     },
   },
 });

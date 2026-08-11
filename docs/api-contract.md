@@ -72,6 +72,12 @@ confiar en el rol enviado por el navegador.
 | POST | `/auth/register` | No | `AuthSession` |
 | POST | `/auth/logout` | Sí | `null` o `204` |
 | POST | `/auth/password-reset` | No | `null` o `204` |
+| GET | `/auth/me` | Sí | `{ user: AuthUser }` |
+
+`POST /auth/register` recibe `{ fullName, email, password }`. Cuando la
+confirmación de correo está habilitada en Supabase, puede responder
+`403 EMAIL_CONFIRMATION_REQUIRED`; el usuario debe confirmar su correo y
+después iniciar sesión.
 
 ## Catálogo e instructores
 

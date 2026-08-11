@@ -11,11 +11,9 @@ autorización y el acceso seguro a Supabase PostgreSQL. `academix-frontend`
 no se conecta directamente a Supabase para autenticación, datos ni reglas
 de negocio: todo pasa por esta API.
 
-En la **Fase 1 del backend** se consolida la infraestructura HTTP sobre la
-que se construirán los módulos del dominio: configuración validada, CORS
-con lista de orígenes, cabeceras seguras, errores tipados, respuestas
-paginadas, cierre ordenado, pruebas y CI. El único endpoint funcional sigue
-siendo `GET /api/v1/health`; la base de datos se conectará en la Fase 2.
+La infraestructura HTTP y la integración de **Supabase Auth** ya están
+conectadas. El backend registra e inicia sesiones, valida JWT en cada ruta
+protegida y mantiene las claves de Supabase fuera del frontend.
 
 ## Stack
 
@@ -50,6 +48,9 @@ cp .env.example .env
 | `PORT` | No (default `3000`) | Puerto donde escucha Express. |
 | `NODE_ENV` | No (default `development`) | `development` \| `production` \| `test`. |
 | `FRONTEND_URL` | **Sí** | Uno o más orígenes HTTP/HTTPS autorizados para CORS, separados por comas. No admite rutas. |
+| `SUPABASE_URL` | **Sí** | URL del proyecto `academix` en Supabase. |
+| `SUPABASE_PUBLISHABLE_KEY` | **Sí** | Clave publicable moderna para operaciones de Auth. |
+| `SUPABASE_SECRET_KEY` | **Sí** | Clave secreta exclusiva del backend para perfiles y roles. |
 
 Todas las variables se leen y validan en un único lugar: `src/config/env.ts`.
 Ningún otro archivo accede a `process.env` directamente.
@@ -96,7 +97,8 @@ npm test
 
 Las pruebas de `tests/` (Vitest + Supertest) **no requieren un
 `.env` local**. `vitest.config.ts` define `test.env` con valores seguros
-de prueba (`NODE_ENV=test`, `PORT=3000`, `FRONTEND_URL=http://localhost:5173`)
+de prueba (`NODE_ENV=test`, `PORT=3000`, URL del frontend y credenciales
+ficticias de Supabase)
 que se inyectan en `process.env` únicamente durante la ejecución de
 Vitest, antes de que se cargue `src/config/env.ts`. Esto permite clonar
 el repositorio y ejecutar `npm install && npm test` sin ningún paso
@@ -110,7 +112,9 @@ academix-backend/
 │   ├── config/
 │   │   ├── cors.ts             # política CORS centralizada
 │   │   └── env.ts              # lectura y validación (Zod) de variables de entorno
+│   │   └── supabase.ts         # clientes Auth y Admin exclusivos del servidor
 │   ├── controllers/
+│   │   ├── auth.controller.ts
 │   │   └── health.controller.ts
 │   ├── errors/
 │   │   └── app-error.ts        # errores operativos seguros y tipados
@@ -119,7 +123,10 @@ academix-backend/
 │   │   └── index.ts            # registra todos los routers de /api/v1
 │   ├── middleware/
 │   │   ├── error-handler.ts    # manejador central de errores (JSON, sin stack trace al cliente)
+│   │   ├── require-auth.ts      # valida Authorization: Bearer con Supabase Auth
 │   │   └── not-found.ts        # 404 en formato JSON consistente
+│   ├── services/
+│   │   └── auth.service.ts      # registro, login, logout y recuperación
 │   ├── types/
 │   │   └── api.types.ts        # éxito, error y paginación compartidos
 │   ├── utils/
@@ -134,8 +141,8 @@ academix-backend/
 └── eslint.config.js
 ```
 
-Las carpetas `services/` y `repositories/` aparecerán cuando exista lógica
-de negocio real. No se crean capas vacías solo para aparentar arquitectura.
+La capa `services/` contiene únicamente la lógica real de Auth. Los
+repositorios del dominio aparecerán al implementar catálogo, perfiles y aula.
 
 ## Endpoint disponible
 
@@ -158,6 +165,26 @@ curl http://localhost:3000/api/v1/health
   }
 }
 ```
+
+## Autenticación
+
+| Método | Ruta | Protección |
+|---|---|---|
+| `POST` | `/api/v1/auth/register` | Pública |
+| `POST` | `/api/v1/auth/login` | Pública |
+| `POST` | `/api/v1/auth/password-reset` | Pública |
+| `GET` | `/api/v1/auth/me` | Bearer token |
+| `POST` | `/api/v1/auth/logout` | Bearer token |
+
+El registro recibe `{ fullName, email, password }`. Login devuelve el
+`AuthSession` esperado por el frontend: `{ user, accessToken, expiresAt }`.
+Si la confirmación de correo está activa en Supabase, el registro responde
+`403 EMAIL_CONFIRMATION_REQUIRED` hasta que el usuario confirme su cuenta.
+
+Para proteger cualquier router futuro, agrega `requireAuth` antes del
+controlador. El middleware valida el token contra Supabase Auth y deja la
+identidad verificada en `req.auth`; ningún controlador debe confiar en un ID
+de usuario o rol enviado por el navegador.
 
 ### Cualquier ruta no existente
 
@@ -217,19 +244,16 @@ sobre común documentado arriba. La especificación completa está en
 
 ## Relación con Supabase
 
-Este backend será el único componente autorizado para usar la clave secreta
-de Supabase. Se empleará `SUPABASE_SECRET_KEY` (formato moderno) en el entorno
-del servidor y nunca se confirmará en Git ni se copiará al frontend. La
-conexión permanecerá desactivada hasta contar con acceso administrativo al
-proyecto.
+Este backend es el único componente autorizado para usar `SUPABASE_SECRET_KEY`.
+La migración `setup_auth_profile` crea automáticamente `public.usuarios`,
+asigna el rol `Alumno`, habilita RLS y revoca el acceso directo de los roles
+`anon` y `authenticated` a las tablas de identidad.
 
 ## Fases siguientes
 
-1. **Fase 2:** conexión segura con Supabase, cliente del servidor y health
-   interno de base de datos.
-2. **Fase 3:** migración inicial de PostgreSQL, restricciones, índices y RLS.
-3. **Fase 4:** autenticación mediante endpoints del backend y verificación de JWT.
-4. **Fase 5:** perfiles, catálogo, categorías e instructores.
-5. **Fase 6:** inscripciones, aula y progreso.
-6. **Fase 7:** reseñas y certificados.
-7. **Fase 8:** integración completa con el frontend, seguridad y despliegue.
+1. **Seguridad de datos:** habilitar RLS o revocar Data API en las tablas del
+   dominio que todavía están expuestas.
+2. **Perfiles y catálogo:** categorías, cursos e instructores.
+3. **Inscripciones, aula y progreso.**
+4. **Reseñas y certificados.**
+5. **Integración completa con el frontend y despliegue.**

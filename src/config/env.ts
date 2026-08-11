@@ -60,6 +60,13 @@ const envSchema = z.object({
       },
       "FRONTEND_URL debe contener URLs válidas separadas por comas."
     ),
+  SUPABASE_URL: z.string().url("SUPABASE_URL debe ser una URL válida."),
+  SUPABASE_PUBLISHABLE_KEY: z
+    .string({ required_error: "SUPABASE_PUBLISHABLE_KEY es obligatoria." })
+    .min(1),
+  SUPABASE_SECRET_KEY: z
+    .string({ required_error: "SUPABASE_SECRET_KEY es obligatoria." })
+    .min(1),
 });
 
 const parsed = envSchema.safeParse(process.env);
