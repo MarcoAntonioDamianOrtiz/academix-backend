@@ -12,6 +12,11 @@ export interface ReviewModerationResult extends CourseReview {
   moderationReason: string | null;
 }
 
+export interface AdminCourseReview extends ReviewModerationResult {
+  courseId: string;
+  courseTitle: string;
+}
+
 export interface CourseReviewStats {
   rating: number;
   reviewCount: number;

@@ -105,6 +105,36 @@ migración confirmó las cuatro concesiones y ninguna exposición pública.
   `authenticated` no pueden ejecutarlas; solo `service_role` accede desde
   Express.
 
+## Gestión de reseñas — Fase 8
+
+- `academix_course_review_stats(uuid[])` calcula promedio y cantidad por curso
+  dentro de PostgreSQL; evita transferir todas las reseñas al proceso Node.js.
+- La función es `SECURITY INVOKER`, usa un `search_path` vacío y solo concede
+  ejecución a `service_role`.
+- `idx_resenas_activas_fecha` acelera la bandeja administrativa por fecha sin
+  indexar filas desactivadas.
+- `resenas_cursos` conserva RLS y no concede lectura a `anon` ni
+  `authenticated`; los listados público y administrativo pasan por Express.
+- La revisión posterior no encontró nuevos avisos de seguridad ni índices de
+  claves foráneas faltantes. Los índices sin uso siguen siendo informativos
+  mientras no exista tráfico representativo.
+
+## Integridad de certificados — Fase 9
+
+- `certificados` conserva sus filas y añade snapshots inmutables de nombre del
+  destinatario, título del curso, duración, emisor y versión de plantilla.
+- `fecha_emision` usa `timestamp with time zone` y se normaliza a milisegundos.
+- Cada credencial almacena una firma SHA-256 calculada sobre IDs, código, fecha
+  y contenido visible; un trigger impide modificar su identidad después de la
+  emisión.
+- La emisión sigue siendo automática e idempotente. Cambiar
+  `permite_certificado` también reactiva/emite o revoca credenciales elegibles.
+- `academix_certificate_signature_is_valid(uuid)` es `SECURITY INVOKER` y solo
+  `service_role` puede ejecutarla desde Express.
+- `anon` y `authenticated` siguen sin acceso directo. `service_role` conserva
+  únicamente `SELECT`, `INSERT` y `UPDATE` sobre `certificados`, sin `DELETE` ni
+  `TRUNCATE`; en `tipos_certificado` solo puede leer.
+
 ## Regularización 6.5
 
 - Se agregan los siete índices de claves foráneas pendientes informados por el
@@ -131,3 +161,16 @@ las tablas de negocio aún están vacías y no existe tráfico representativo.
 | `20260811201127` | `course_content_authoring_storage` |
 | `20260812031205` | `reviews_certificates` |
 | `20260812035330` | `phase_6_5_foreign_key_indexes` |
+| `20260812160334` | `phase_8_review_management` |
+| `20260812170757` | `phase_9_certificate_integrity` |
+
+## Auditoría final — Fase 10
+
+- Las 37 tablas continúan con RLS y sin DML para `anon` o `authenticated`.
+- Las 10 funciones de `public` son `SECURITY INVOKER`; ninguna es ejecutable
+  por los roles del Data API.
+- No existen claves foráneas sin índice inicial.
+- El bucket de contenido continúa privado.
+- No se creó migración: el cierre HTTP y operativo no requiere DDL.
+- Los 37 avisos de RLS sin política son el bloqueo backend-only esperado; los
+  índices sin uso se conservan hasta tener estadísticas representativas.

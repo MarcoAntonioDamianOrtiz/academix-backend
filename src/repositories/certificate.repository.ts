@@ -7,44 +7,37 @@ interface CertificateRow {
   codigo_certificado: string;
   fecha_emision: string;
   fk_curso: string;
-  cursos: {
-    titulo: string;
-    duracion_estimada_horas: number | string | null;
-  } | null;
-  usuarios: {
-    nombres: string;
-    apellido_paterno: string;
-    apellido_materno: string | null;
-  } | null;
+  nombre_destinatario: string;
+  titulo_curso: string;
+  duracion_horas: number | string;
+  emisor: string;
+  firma_sistema: string;
 }
 
 export interface CertificateRepository {
   listByUser(userId: string): Promise<CertificateDetail[]>;
   findForUser(userId: string, certificateId: string): Promise<CertificateDetail | null>;
   findByCredentialCode(credentialCode: string): Promise<CertificateDetail | null>;
+  isSignatureValid(certificateId: string): Promise<boolean>;
 }
 
 function databaseFailure(): AppError {
   return new AppError(502, "DATABASE_ERROR", "No fue posible consultar los certificados.");
 }
 
-function serialize(row: CertificateRow): CertificateDetail | null {
-  if (!row.cursos || !row.usuarios) return null;
+function serialize(row: CertificateRow): CertificateDetail {
   return {
     id: row.id_certificado,
     courseId: row.fk_curso,
-    courseTitle: row.cursos.titulo,
+    courseTitle: row.titulo_curso,
     issuedAt: row.fecha_emision,
     credentialCode: row.codigo_certificado,
-    recipientName: [
-      row.usuarios.nombres,
-      row.usuarios.apellido_paterno,
-      row.usuarios.apellido_materno,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim(),
-    durationHours: Number(row.cursos.duracion_estimada_horas ?? 0),
+    recipientName: row.nombre_destinatario,
+    durationHours: Number(row.duracion_horas),
+    issuerName: row.emisor,
+    systemSignature: row.firma_sistema,
+    signatureAlgorithm: "SHA-256",
+    verificationPath: `/api/v1/certificates/verify/${row.codigo_certificado}`,
   };
 }
 
@@ -53,8 +46,11 @@ const CERTIFICATE_COLUMNS = [
   "codigo_certificado",
   "fecha_emision",
   "fk_curso",
-  "cursos!fk_certificado_curso(titulo,duracion_estimada_horas)",
-  "usuarios!fk_certificado_usuario(nombres,apellido_paterno,apellido_materno)",
+  "nombre_destinatario",
+  "titulo_curso",
+  "duracion_horas",
+  "emisor",
+  "firma_sistema",
 ].join(",");
 
 export const certificateRepository: CertificateRepository = {
@@ -66,9 +62,7 @@ export const certificateRepository: CertificateRepository = {
       .eq("activo", true)
       .order("fecha_emision", { ascending: false });
     if (error) throw databaseFailure();
-    return ((data ?? []) as unknown as CertificateRow[])
-      .map(serialize)
-      .filter((certificate): certificate is CertificateDetail => certificate !== null);
+    return ((data ?? []) as unknown as CertificateRow[]).map(serialize);
   },
 
   async findForUser(userId, certificateId) {
@@ -92,5 +86,14 @@ export const certificateRepository: CertificateRepository = {
       .maybeSingle();
     if (error) throw databaseFailure();
     return data ? serialize(data as unknown as CertificateRow) : null;
+  },
+
+  async isSignatureValid(certificateId) {
+    const { data, error } = await supabaseAdmin.rpc(
+      "academix_certificate_signature_is_valid",
+      { p_certificate_id: certificateId }
+    );
+    if (error) throw databaseFailure();
+    return data === true;
   },
 };

@@ -17,7 +17,7 @@ import { errorResponse } from "../utils/api-response";
  */
 export function errorHandler(
   err: unknown,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void {
@@ -59,13 +59,30 @@ export function errorHandler(
     return;
   }
 
-  if (!isProduction) {
-    console.error("[error]", err);
-  }
+  logUnexpectedError(err, req);
 
   res
     .status(500)
     .json(errorResponse("INTERNAL_SERVER_ERROR", "Ocurrió un error interno."));
+}
+
+function logUnexpectedError(error: unknown, req: Request): void {
+  const details =
+    error instanceof Error
+      ? { errorName: error.name, errorMessage: error.message }
+      : { errorName: "UnknownError", errorMessage: "Non-Error value received" };
+
+  console.error(
+    JSON.stringify({
+      event: "unhandled_error",
+      timestamp: new Date().toISOString(),
+      requestId: req.requestId ?? "unavailable",
+      method: req.method,
+      path: req.path,
+      ...details,
+      ...(!isProduction && error instanceof Error ? { stack: error.stack } : {}),
+    })
+  );
 }
 
 function isPayloadTooLargeError(error: unknown): boolean {

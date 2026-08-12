@@ -14,6 +14,10 @@ export default defineConfig({
     env: {
       NODE_ENV: "test",
       PORT: "3000",
+      TRUST_PROXY_HOPS: "0",
+      RATE_LIMIT_WINDOW_MS: "900000",
+      RATE_LIMIT_MAX: "1000",
+      AUTH_RATE_LIMIT_MAX: "1000",
       FRONTEND_URL: "http://localhost:5173",
       SUPABASE_URL: "https://example.supabase.co",
       SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
@@ -21,5 +25,6 @@ export default defineConfig({
       PASSWORD_RESET_REDIRECT_URL:
         "http://localhost:5173/CursosWeb/",
     },
+    exclude: ["tests/integration/**", "node_modules/**", "dist/**"],
   },
 });

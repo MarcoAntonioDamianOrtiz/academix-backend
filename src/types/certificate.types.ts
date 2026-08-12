@@ -9,6 +9,10 @@ export interface CertificateSummary {
 export interface CertificateDetail extends CertificateSummary {
   recipientName: string;
   durationHours: number;
+  issuerName: string;
+  systemSignature: string;
+  signatureAlgorithm: "SHA-256";
+  verificationPath: string;
 }
 
 export interface VerifiedCertificate extends CertificateDetail {

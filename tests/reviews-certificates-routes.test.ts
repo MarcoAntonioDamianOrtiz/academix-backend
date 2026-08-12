@@ -14,6 +14,8 @@ vi.mock("../src/services/review.service", () => ({
   reviewService: {
     createReview: vi.fn(),
     listCourseReviews: vi.fn(),
+    listPublicReviews: vi.fn(),
+    listReviewsForModeration: vi.fn(),
     statsByCourseIds: vi.fn(),
     moderateReview: vi.fn(),
   },
@@ -67,6 +69,60 @@ describe("rutas de reseñas y certificados", () => {
     expect(response.body.data.rating).toBe(5);
   });
 
+  it("lista públicamente las reseñas con paginación", async () => {
+    vi.mocked(reviewService.listPublicReviews).mockResolvedValue({
+      items: [],
+      pagination: { page: 1, limit: 10, total: 0, totalPages: 1 },
+    });
+
+    const response = await request(app).get(`/api/v1/courses/${courseId}/reviews`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual([]);
+    expect(response.body.pagination.total).toBe(0);
+    expect(reviewService.listPublicReviews).toHaveBeenCalledWith(courseId, {
+      page: 1,
+      limit: 10,
+    });
+  });
+
+  it("rechaza un identificador de curso inválido en el listado público", async () => {
+    const response = await request(app).get("/api/v1/courses/no-es-uuid/reviews");
+
+    expect(response.status).toBe(422);
+    expect(reviewService.listPublicReviews).not.toHaveBeenCalled();
+  });
+
+  it("lista la bandeja de moderación solo para administradores", async () => {
+    vi.mocked(authService.verifyAccessToken).mockResolvedValue(admin);
+    vi.mocked(reviewService.listReviewsForModeration).mockResolvedValue({
+      items: [],
+      pagination: { page: 1, limit: 20, total: 0, totalPages: 1 },
+    });
+
+    const response = await request(app)
+      .get("/api/v1/admin/reviews?visibility=hidden&limit=20")
+      .set("Authorization", "Bearer token");
+
+    expect(response.status).toBe(200);
+    expect(reviewService.listReviewsForModeration).toHaveBeenCalledWith({
+      page: 1,
+      limit: 20,
+      visibility: "hidden",
+    });
+  });
+
+  it("impide que un alumno consulte la bandeja de moderación", async () => {
+    vi.mocked(authService.verifyAccessToken).mockResolvedValue(student);
+
+    const response = await request(app)
+      .get("/api/v1/admin/reviews")
+      .set("Authorization", "Bearer token");
+
+    expect(response.status).toBe(403);
+    expect(reviewService.listReviewsForModeration).not.toHaveBeenCalled();
+  });
+
   it("requiere un motivo para ocultar una reseña", async () => {
     vi.mocked(authService.verifyAccessToken).mockResolvedValue(admin);
     const response = await request(app)
@@ -95,6 +151,31 @@ describe("rutas de reseñas y certificados", () => {
     expect(response.status).toBe(422);
   });
 
+  it("devuelve el certificado firmado al propietario", async () => {
+    vi.mocked(authService.verifyAccessToken).mockResolvedValue(student);
+    vi.mocked(certificateService.getMyCertificate).mockResolvedValue({
+      id: certificateId,
+      courseId,
+      courseTitle: "TypeScript desde cero",
+      issuedAt: "2026-08-12T01:00:00.000Z",
+      credentialCode: "ACX-2026-ABCDEF123456",
+      recipientName: student.fullName,
+      durationHours: 12,
+      issuerName: "Academix",
+      systemSignature: "A".repeat(64),
+      signatureAlgorithm: "SHA-256",
+      verificationPath: "/api/v1/certificates/verify/ACX-2026-ABCDEF123456",
+    });
+
+    const response = await request(app)
+      .get(`/api/v1/users/me/certificates/${certificateId}`)
+      .set("Authorization", "Bearer token");
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.systemSignature).toHaveLength(64);
+    expect(certificateService.getMyCertificate).toHaveBeenCalledWith(userId, certificateId);
+  });
+
   it("verifica públicamente una credencial con formato válido", async () => {
     vi.mocked(certificateService.verifyCertificate).mockResolvedValue({
       id: certificateId,
@@ -104,6 +185,10 @@ describe("rutas de reseñas y certificados", () => {
       credentialCode: "ACX-2026-ABCDEF123456",
       recipientName: student.fullName,
       durationHours: 12,
+      issuerName: "Academix",
+      systemSignature: "A".repeat(64),
+      signatureAlgorithm: "SHA-256",
+      verificationPath: "/api/v1/certificates/verify/ACX-2026-ABCDEF123456",
       valid: true,
     });
     const response = await request(app).get(
@@ -111,6 +196,7 @@ describe("rutas de reseñas y certificados", () => {
     );
     expect(response.status).toBe(200);
     expect(response.body.data.valid).toBe(true);
+    expect(response.body.data.issuerName).toBe("Academix");
     expect(certificateService.verifyCertificate).toHaveBeenCalledWith(
       "ACX-2026-ABCDEF123456"
     );

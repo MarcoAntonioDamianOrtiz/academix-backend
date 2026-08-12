@@ -14,9 +14,11 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:watch": "vitest",
     "admin:bootstrap": "tsx src/scripts/bootstrap-admin.ts",
     "supabase:verify": "npm run build --silent && node dist/scripts/verify-supabase.js",
+    "verify:production": "npm run check && npm audit --omit=dev && npm run supabase:verify && npm run test:integration",
     "check": "npm run lint && npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
@@ -24,6 +26,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-rate-limit": "8.6.2",
     "helmet": "^8.0.0",
     "zod": "^3.24.1"
   },

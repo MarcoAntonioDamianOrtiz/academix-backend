@@ -4,7 +4,12 @@ import {
   reviewStats,
   type ReviewRepository,
 } from "../repositories/review.repository";
-import type { CreateReviewInput, ModerateReviewInput } from "../schemas/review.schemas";
+import type {
+  AdminReviewListQuery,
+  CreateReviewInput,
+  ModerateReviewInput,
+  ReviewListQuery,
+} from "../schemas/review.schemas";
 import type { CourseReview, CourseReviewStats, ReviewModerationResult } from "../types/review.types";
 
 export interface CourseReviewReader {
@@ -42,14 +47,36 @@ export function createReviewService(repository: ReviewRepository) {
       return (await repository.listByCourseIds([courseId])).map(publicReview);
     },
 
+    async listPublicReviews(courseId: string, input: ReviewListQuery) {
+      const result = await repository.listPublic(courseId, input.page, input.limit);
+      return {
+        items: result.records.map(publicReview),
+        pagination: {
+          page: input.page,
+          limit: input.limit,
+          total: result.total,
+          totalPages: Math.max(1, Math.ceil(result.total / input.limit)),
+        },
+      };
+    },
+
+    async listReviewsForModeration(input: AdminReviewListQuery) {
+      const result = await repository.listForModeration(input);
+      return {
+        items: result.records,
+        pagination: {
+          page: input.page,
+          limit: input.limit,
+          total: result.total,
+          totalPages: Math.max(1, Math.ceil(result.total / input.limit)),
+        },
+      };
+    },
+
     async statsByCourseIds(courseIds: string[]): Promise<Map<string, CourseReviewStats>> {
-      const records = await repository.listByCourseIds([...new Set(courseIds)]);
-      const grouped = new Map<string, typeof records>();
-      for (const record of records) {
-        grouped.set(record.courseId, [...(grouped.get(record.courseId) ?? []), record]);
-      }
+      const stats = await repository.statsByCourseIds([...new Set(courseIds)]);
       return new Map(
-        courseIds.map((courseId) => [courseId, reviewStats(grouped.get(courseId) ?? [])])
+        courseIds.map((courseId) => [courseId, stats.get(courseId) ?? reviewStats([])])
       );
     },
 

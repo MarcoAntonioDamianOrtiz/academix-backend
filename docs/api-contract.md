@@ -14,6 +14,10 @@ backend.
 
 ## Sobre común
 
+Cada respuesta incluye `X-Request-Id`. Las rutas protegidas y todo `/auth`
+incluyen `Cache-Control: no-store`. La API publica cabeceras `RateLimit` y
+responde con `429 RATE_LIMITED` cuando una IP agota temporalmente su cuota.
+
 Éxito:
 
 ```json
@@ -283,7 +287,9 @@ y devuelve `206`, `Accept-Ranges` y `Content-Range`. Un rango inválido devuelve
 
 | Método | Ruta | Auth | Respuesta `data` |
 |---|---|---:|---|
+| GET | `/courses/:courseId/reviews?page=1&limit=10` | No | `CourseReview[]` + paginación |
 | POST | `/courses/:courseId/reviews` | Sí | `CourseReview` |
+| GET | `/admin/reviews?visibility=all&courseId=&page=1&limit=10` | admin | `AdminCourseReview[]` + paginación |
 | GET | `/users/me/certificates` | Sí | `CertificateSummary[]` |
 | GET | `/users/me/certificates/:certificateId` | Sí | `CertificateDetail` |
 | GET | `/certificates/verify/:credentialCode` | No | `VerifiedCertificate` |
@@ -301,6 +307,16 @@ publicar; se admite una reseña por inscripción. Una duplicada responde
 `409 REVIEW_ALREADY_EXISTS` y un curso no finalizado responde
 `403 COURSE_COMPLETION_REQUIRED`.
 
+`GET /courses/:courseId/reviews` solo devuelve reseñas activas y visibles,
+ordenadas desde la más reciente. `page` comienza en 1 y `limit` admite de 1 a
+50 elementos (default 10). La respuesta pública no contiene visibilidad ni
+motivos de moderación.
+
+`GET /admin/reviews` devuelve la bandeja de moderación. `visibility` admite
+`all`, `visible` o `hidden`; `courseId` es un UUID opcional. La colección
+administrativa incluye `courseId`, `courseTitle`, `visible` y
+`moderationReason`.
+
 La moderación recibe `{ "visible": false, "reason": "Motivo" }`; el motivo es
 obligatorio al ocultar. No elimina filas y las reseñas ocultas dejan de afectar
 el detalle, el promedio y la cantidad pública del curso.
@@ -308,7 +324,27 @@ el detalle, el promedio y la cantidad pública del curso.
 El backend emite el certificado automáticamente al finalizar todas las
 lecciones activas de un curso que permita certificado. La lista devuelve
 `CertificateSummary`; el detalle propio y la verificación pública incluyen
-nombre del destinatario y duración. La verificación solo acepta códigos con
+una fotografía inmutable del destinatario, curso, duración, fecha y emisor.
+
+```json
+{
+  "id": "uuid",
+  "courseId": "uuid",
+  "courseTitle": "TypeScript desde cero",
+  "issuedAt": "2026-08-12T01:00:00.000Z",
+  "credentialCode": "ACX-2026-ABCDEF123456",
+  "recipientName": "Ana Pérez",
+  "durationHours": 12,
+  "issuerName": "Academix",
+  "systemSignature": "64 caracteres hexadecimales",
+  "signatureAlgorithm": "SHA-256",
+  "verificationPath": "/api/v1/certificates/verify/ACX-2026-ABCDEF123456"
+}
+```
+
+`VerifiedCertificate` agrega `valid: true`. El backend comprueba la firma antes
+de devolver el detalle o la verificación. Una firma inconsistente responde
+`409 CERTIFICATE_INTEGRITY_ERROR`. La verificación solo acepta códigos con
 formato `ACX-AAAA-XXXXXXXXXXXX` y nunca expone correo, UUID de usuario ni datos
 internos. Una credencial inexistente o revocada responde
 `404 CERTIFICATE_NOT_FOUND`.
@@ -324,7 +360,19 @@ internos. Una credencial inexistente o revocada responde
 - `404`: recurso inexistente.
 - `409`: duplicidad o conflicto de estado.
 - `422`: validación semántica.
+- `429`: límite temporal de solicitudes agotado.
 - `500`: error interno sin detalles sensibles.
+- `503`: readiness fallido porque una dependencia no está disponible.
+
+## Operación
+
+| Método | Ruta | Uso |
+|---|---|---|
+| GET | `/health` | Liveness del proceso Express. |
+| GET | `/health/ready` | Readiness de Express y conexión de solo lectura a Postgres. |
+
+La especificación procesable completa está en `docs/openapi.yaml`. Readiness
+no expone URL, credenciales ni el error interno de la dependencia.
 
 Cualquier cambio en este contrato debe actualizar los tipos, servicios,
 pruebas y documentación de ambos repositorios en el mismo ciclo de trabajo.

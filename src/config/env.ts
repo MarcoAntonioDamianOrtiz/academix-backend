@@ -46,6 +46,15 @@ export function parseFrontendOrigins(value: string): string[] {
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
+  RATE_LIMIT_WINDOW_MS: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(3_600_000)
+    .default(900_000),
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   FRONTEND_URL: z
     .string({ required_error: "FRONTEND_URL es obligatoria (se usa para configurar CORS)." })
     .min(1)

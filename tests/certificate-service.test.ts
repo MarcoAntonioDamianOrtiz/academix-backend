@@ -10,6 +10,10 @@ const certificate = {
   credentialCode: "ACX-2026-ABCDEF123456",
   recipientName: "Ana Pérez",
   durationHours: 12,
+  issuerName: "Academix",
+  systemSignature: "A".repeat(64),
+  signatureAlgorithm: "SHA-256" as const,
+  verificationPath: "/api/v1/certificates/verify/ACX-2026-ABCDEF123456",
 };
 
 function repository(overrides: Partial<CertificateRepository> = {}): CertificateRepository {
@@ -17,6 +21,7 @@ function repository(overrides: Partial<CertificateRepository> = {}): Certificate
     listByUser: vi.fn().mockResolvedValue([]),
     findForUser: vi.fn().mockResolvedValue(null),
     findByCredentialCode: vi.fn().mockResolvedValue(null),
+    isSignatureValid: vi.fn().mockResolvedValue(true),
     ...overrides,
   };
 }
@@ -44,6 +49,15 @@ describe("servicio de certificados", () => {
     });
   });
 
+  it("devuelve el certificado propio únicamente si su firma es válida", async () => {
+    const repo = repository({ findForUser: vi.fn().mockResolvedValue(certificate) });
+
+    await expect(
+      createCertificateService(repo).getMyCertificate("user-id", certificate.id)
+    ).resolves.toMatchObject({ issuerName: "Academix", signatureAlgorithm: "SHA-256" });
+    expect(repo.isSignatureValid).toHaveBeenCalledWith(certificate.id);
+  });
+
   it("verifica solamente credenciales activas encontradas", async () => {
     const service = createCertificateService(
       repository({ findByCredentialCode: vi.fn().mockResolvedValue(certificate) })
@@ -51,6 +65,20 @@ describe("servicio de certificados", () => {
     await expect(service.verifyCertificate(certificate.credentialCode)).resolves.toMatchObject({
       valid: true,
       credentialCode: certificate.credentialCode,
+    });
+  });
+
+  it("rechaza un certificado cuya firma no coincide", async () => {
+    const service = createCertificateService(
+      repository({
+        findByCredentialCode: vi.fn().mockResolvedValue(certificate),
+        isSignatureValid: vi.fn().mockResolvedValue(false),
+      })
+    );
+
+    await expect(service.verifyCertificate(certificate.credentialCode)).rejects.toMatchObject({
+      status: 409,
+      code: "CERTIFICATE_INTEGRITY_ERROR",
     });
   });
 });

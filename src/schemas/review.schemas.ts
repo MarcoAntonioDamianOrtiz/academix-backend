@@ -11,6 +11,20 @@ export const reviewIdentifierSchema = z.object({
   reviewId: z.string().uuid("El identificador de la reseña no es válido."),
 });
 
+export const reviewCourseIdentifierSchema = z.object({
+  courseId: z.string().uuid("El identificador del curso no es válido."),
+});
+
+export const reviewListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+});
+
+export const adminReviewListQuerySchema = reviewListQuerySchema.extend({
+  visibility: z.enum(["all", "visible", "hidden"]).default("all"),
+  courseId: z.string().uuid("El identificador del curso no es válido.").optional(),
+});
+
 export const moderateReviewSchema = z
   .object({
     visible: z.boolean(),
@@ -29,3 +43,5 @@ export const moderateReviewSchema = z
 
 export type CreateReviewInput = z.infer<typeof createReviewSchema>;
 export type ModerateReviewInput = z.infer<typeof moderateReviewSchema>;
+export type ReviewListQuery = z.infer<typeof reviewListQuerySchema>;
+export type AdminReviewListQuery = z.infer<typeof adminReviewListQuerySchema>;

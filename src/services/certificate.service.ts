@@ -10,8 +10,29 @@ import type {
 } from "../types/certificate.types";
 
 function summary(certificate: CertificateDetail): CertificateSummary {
-  const { recipientName: _recipientName, durationHours: _durationHours, ...result } = certificate;
+  const {
+    recipientName: _recipientName,
+    durationHours: _durationHours,
+    issuerName: _issuerName,
+    systemSignature: _systemSignature,
+    signatureAlgorithm: _signatureAlgorithm,
+    verificationPath: _verificationPath,
+    ...result
+  } = certificate;
   return result;
+}
+
+async function assertIntegrity(
+  repository: CertificateRepository,
+  certificate: CertificateDetail
+): Promise<void> {
+  if (!(await repository.isSignatureValid(certificate.id))) {
+    throw new AppError(
+      409,
+      "CERTIFICATE_INTEGRITY_ERROR",
+      "No fue posible validar la integridad del certificado."
+    );
+  }
 }
 
 export function createCertificateService(repository: CertificateRepository) {
@@ -25,6 +46,7 @@ export function createCertificateService(repository: CertificateRepository) {
       if (!certificate) {
         throw new AppError(404, "CERTIFICATE_NOT_FOUND", "El certificado solicitado no existe.");
       }
+      await assertIntegrity(repository, certificate);
       return certificate;
     },
 
@@ -33,6 +55,7 @@ export function createCertificateService(repository: CertificateRepository) {
       if (!certificate) {
         throw new AppError(404, "CERTIFICATE_NOT_FOUND", "El certificado no existe o fue revocado.");
       }
+      await assertIntegrity(repository, certificate);
       return { ...certificate, valid: true };
     },
   };

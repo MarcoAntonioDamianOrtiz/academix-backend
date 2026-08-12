@@ -2,8 +2,11 @@ import cors from "cors";
 import express, { type Express } from "express";
 import helmet from "helmet";
 import { corsOptions } from "./config/cors";
+import { env } from "./config/env";
 import { errorHandler } from "./middleware/error-handler";
 import { notFound } from "./middleware/not-found";
+import { apiRateLimiter } from "./middleware/rate-limit";
+import { requestContext } from "./middleware/request-context";
 import apiRoutes from "./routes";
 
 /**
@@ -16,6 +19,9 @@ export function createApp(): Express {
 
   app.disable("x-powered-by");
 
+  app.set("trust proxy", env.TRUST_PROXY_HOPS === 0 ? false : env.TRUST_PROXY_HOPS);
+  app.use(requestContext);
+
   // Cabeceras de seguridad básicas (no es autenticación ni autorización,
   // solo buenas prácticas de cabeceras HTTP).
   app.use(helmet());
@@ -27,6 +33,9 @@ export function createApp(): Express {
   // Body parser JSON con límite de payload para evitar solicitudes
   // maliciosas o accidentales de tamaño excesivo.
   app.use(express.json({ limit: "1mb" }));
+
+  // Protección general por IP. Los preflights OPTIONS no consumen cuota.
+  app.use("/api/v1", apiRateLimiter);
 
   // Todas las rutas de la API viven bajo /api/v1.
   app.use("/api/v1", apiRoutes);

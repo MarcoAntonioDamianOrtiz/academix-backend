@@ -56,20 +56,38 @@ async function main(): Promise<void> {
   const contentBucket = buckets?.find(
     (bucket) => bucket.id === "academix-course-content"
   );
+  const { data: signatureProbe, error: signatureError } = await supabaseAdmin.rpc(
+    "academix_certificate_signature_is_valid",
+    { p_certificate_id: "00000000-0000-4000-8000-000000000000" }
+  );
 
-  if (failures.length > 0 || storageError || !contentBucket || contentBucket.public) {
+  if (
+    failures.length > 0 ||
+    storageError ||
+    !contentBucket ||
+    contentBucket.public ||
+    signatureError ||
+    signatureProbe !== false
+  ) {
     for (const failure of failures) {
       console.error(`Tabla no disponible: ${failure.table} (${failure.error})`);
     }
     if (storageError) console.error(`Storage no disponible: ${storageError.message}`);
     if (!contentBucket) console.error("No existe el bucket academix-course-content.");
     if (contentBucket?.public) console.error("El bucket de contenido no es privado.");
+    if (signatureError) {
+      console.error(`Verificación de firma no disponible: ${signatureError.message}`);
+    }
+    if (!signatureError && signatureProbe !== false) {
+      console.error("La prueba negativa de firma no produjo el resultado esperado.");
+    }
     process.exitCode = 1;
     return;
   }
 
   console.log(`Supabase verificado: ${checks.length} tablas públicas disponibles.`);
   console.log("Bucket academix-course-content: privado.");
+  console.log("Firma de certificados: verificación disponible.");
 }
 
 void main();

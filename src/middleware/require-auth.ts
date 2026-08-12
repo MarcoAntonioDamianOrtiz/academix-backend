@@ -15,7 +15,9 @@ function bearerToken(header: string | undefined): string {
   return match[1];
 }
 
-export async function requireAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  res.setHeader("Cache-Control", "no-store");
+
   try {
     const accessToken = bearerToken(req.header("authorization"));
     const user = await authService.verifyAccessToken(accessToken);

@@ -15,7 +15,11 @@ import {
   userListQuerySchema,
 } from "../schemas/administration.schemas";
 import { administrationService } from "../services/administration.service";
-import { moderateReviewSchema, reviewIdentifierSchema } from "../schemas/review.schemas";
+import {
+  adminReviewListQuerySchema,
+  moderateReviewSchema,
+  reviewIdentifierSchema,
+} from "../schemas/review.schemas";
 import { reviewService } from "../services/review.service";
 import { paginatedResponse, successResponse } from "../utils/api-response";
 
@@ -109,4 +113,10 @@ export const moderateReview = handler(async (req, res) => {
   const { reviewId } = reviewIdentifierSchema.parse(req.params);
   const input = moderateReviewSchema.parse(req.body);
   res.json(successResponse(await reviewService.moderateReview(reviewId, input, actor(req).id)));
+});
+
+export const listReviews = handler(async (req, res) => {
+  const input = adminReviewListQuerySchema.parse(req.query);
+  const result = await reviewService.listReviewsForModeration(input);
+  res.json(paginatedResponse(result.items, result.pagination));
 });

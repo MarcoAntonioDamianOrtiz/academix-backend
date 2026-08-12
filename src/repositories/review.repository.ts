@@ -1,6 +1,10 @@
 import { supabaseAdmin } from "../config/supabase";
 import { AppError } from "../errors/app-error";
-import type { CourseReviewStats, ReviewModerationResult } from "../types/review.types";
+import type { AdminReviewListQuery } from "../schemas/review.schemas";
+import type {
+  AdminCourseReview,
+  CourseReviewStats,
+} from "../types/review.types";
 
 interface ReviewRow {
   id_resena: string;
@@ -12,6 +16,7 @@ interface ReviewRow {
   inscripciones: {
     fk_curso: string;
     fk_usuario: string;
+    cursos: { titulo: string } | null;
     usuarios: {
       nombres: string;
       apellido_paterno: string;
@@ -20,14 +25,15 @@ interface ReviewRow {
   } | null;
 }
 
-export interface ReviewRecord extends ReviewModerationResult {
-  courseId: string;
-}
+export type ReviewRecord = AdminCourseReview;
 
 export interface ReviewRepository {
   create(userId: string, courseId: string, rating: number, comment: string): Promise<string>;
   findById(reviewId: string): Promise<ReviewRecord | null>;
   listByCourseIds(courseIds: string[]): Promise<ReviewRecord[]>;
+  listPublic(courseId: string, page: number, limit: number): Promise<{ records: ReviewRecord[]; total: number }>;
+  listForModeration(input: AdminReviewListQuery): Promise<{ records: ReviewRecord[]; total: number }>;
+  statsByCourseIds(courseIds: string[]): Promise<Map<string, CourseReviewStats>>;
   moderate(reviewId: string, visible: boolean, reason: string | undefined, actorId: string): Promise<void>;
 }
 
@@ -65,6 +71,7 @@ function serialize(row: ReviewRow): ReviewRecord | null {
   return {
     id: row.id_resena,
     courseId: row.inscripciones.fk_curso,
+    courseTitle: row.inscripciones.cursos?.titulo ?? "Curso Academix",
     authorId: row.inscripciones.fk_usuario,
     authorName: fullName(row.inscripciones.usuarios),
     rating: row.calificacion,
@@ -82,8 +89,14 @@ const REVIEW_COLUMNS = [
   "visible",
   "motivo_moderacion",
   "fecha_creacion",
-  "inscripciones!fk_resena_inscripcion!inner(fk_curso,fk_usuario,usuarios!fk_inscripcion_usuario(nombres,apellido_paterno,apellido_materno))",
+  "inscripciones!fk_resena_inscripcion!inner(fk_curso,fk_usuario,cursos!fk_inscripcion_curso(titulo),usuarios!fk_inscripcion_usuario(nombres,apellido_paterno,apellido_materno))",
 ].join(",");
+
+function serializeRows(data: unknown[] | null): ReviewRecord[] {
+  return (data ?? [])
+    .map((row) => serialize(row as ReviewRow))
+    .filter((review): review is ReviewRecord => review !== null);
+}
 
 export const reviewRepository: ReviewRepository = {
   async create(userId, courseId, rating, comment) {
@@ -120,9 +133,57 @@ export const reviewRepository: ReviewRepository = {
       .in("inscripciones.fk_curso", courseIds)
       .order("fecha_creacion", { ascending: false });
     if (error) throw databaseFailure(error);
-    return ((data ?? []) as unknown as ReviewRow[])
-      .map(serialize)
-      .filter((review): review is ReviewRecord => review !== null);
+    return serializeRows(data);
+  },
+
+  async listPublic(courseId, page, limit) {
+    const from = (page - 1) * limit;
+    const { data, error, count } = await supabaseAdmin
+      .from("resenas_cursos")
+      .select(REVIEW_COLUMNS, { count: "exact" })
+      .eq("activo", true)
+      .eq("visible", true)
+      .eq("inscripciones.fk_curso", courseId)
+      .order("fecha_creacion", { ascending: false })
+      .range(from, from + limit - 1);
+    if (error) throw databaseFailure(error);
+    return { records: serializeRows(data), total: count ?? 0 };
+  },
+
+  async listForModeration(input) {
+    const from = (input.page - 1) * input.limit;
+    let query = supabaseAdmin
+      .from("resenas_cursos")
+      .select(REVIEW_COLUMNS, { count: "exact" })
+      .eq("activo", true);
+    if (input.visibility !== "all") {
+      query = query.eq("visible", input.visibility === "visible");
+    }
+    if (input.courseId) query = query.eq("inscripciones.fk_curso", input.courseId);
+    const { data, error, count } = await query
+      .order("fecha_creacion", { ascending: false })
+      .range(from, from + input.limit - 1);
+    if (error) throw databaseFailure(error);
+    return { records: serializeRows(data), total: count ?? 0 };
+  },
+
+  async statsByCourseIds(courseIds) {
+    if (courseIds.length === 0) return new Map();
+    const { data, error } = await supabaseAdmin.rpc("academix_course_review_stats", {
+      p_course_ids: [...new Set(courseIds)],
+    });
+    if (error) throw databaseFailure(error);
+    const rows = (data ?? []) as Array<{
+      course_id: string;
+      rating: number | string;
+      review_count: number | string;
+    }>;
+    return new Map(
+      rows.map((row) => [
+        row.course_id,
+        { rating: Number(row.rating), reviewCount: Number(row.review_count) },
+      ])
+    );
   },
 
   async moderate(reviewId, visible, reason, actorId) {

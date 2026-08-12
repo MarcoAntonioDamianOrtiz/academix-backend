@@ -7,6 +7,7 @@ import {
   createCourse,
   listCourses,
   listInstructors,
+  listReviews,
   listUsers,
   moderateReview,
   publishCourse,
@@ -33,6 +34,7 @@ router.patch("/courses/:courseId", updateCourse);
 router.put("/courses/:courseId/instructor", assignPrincipalInstructor);
 router.post("/courses/:courseId/publish", publishCourse);
 router.post("/courses/:courseId/archive", archiveCourse);
+router.get("/reviews", listReviews);
 router.patch("/reviews/:reviewId/moderation", moderateReview);
 
 export default router;

@@ -21,7 +21,7 @@ ruta protegida y mantiene las claves de Supabase fuera del frontend.
 - Express 4
 - TypeScript (`strict: true`)
 - Zod (validación de entorno y, en las siguientes fases, solicitudes)
-- CORS + Helmet
+- CORS + Helmet + rate limiting
 - Vitest + Supertest (pruebas)
 
 ## Requisitos
@@ -47,6 +47,10 @@ cp .env.example .env
 |---|---|---|
 | `PORT` | No (default `3000`) | Puerto donde escucha Express. |
 | `NODE_ENV` | No (default `development`) | `development` \| `production` \| `test`. |
+| `TRUST_PROXY_HOPS` | No (default `0`) | Cantidad exacta de proxies confiables delante de Express. |
+| `RATE_LIMIT_WINDOW_MS` | No (default `900000`) | Ventana del límite por IP, entre 1 segundo y 1 hora. |
+| `RATE_LIMIT_MAX` | No (default `300`) | Solicitudes generales permitidas por IP y ventana. |
+| `AUTH_RATE_LIMIT_MAX` | No (default `10`) | Solicitudes adicionales permitidas para registro, login y recuperación. |
 | `FRONTEND_URL` | **Sí** | Uno o más orígenes HTTP/HTTPS autorizados para CORS, separados por comas. No admite rutas. |
 | `SUPABASE_URL` | **Sí** | URL del proyecto `academix` en Supabase. |
 | `SUPABASE_PUBLISHABLE_KEY` | **Sí** | Clave publicable moderna para operaciones de Auth. |
@@ -66,9 +70,11 @@ Ningún otro archivo accede a `process.env` directamente.
 | `npm run typecheck` | Verifica tipos sin generar archivos. |
 | `npm run lint` | Corre ESLint sobre todo el proyecto. |
 | `npm run test` | Corre las pruebas con Vitest. **No requiere `.env`**: `vitest.config.ts` inyecta variables de entorno seguras solo para la ejecución de pruebas (ver más abajo). |
+| `npm run test:integration` | Ejecuta dos comprobaciones reales de solo lectura con el `.env` local. No forma parte de `check`. |
 | `npm run test:watch` | Mantiene Vitest observando cambios durante el desarrollo. |
 | `npm run admin:bootstrap -- --email correo` | Asigna una sola vez el primer Administrador a una cuenta ya registrada. |
 | `npm run supabase:verify` | Comprueba de forma no destructiva las 37 tablas y el bucket privado usando el `.env` local. |
+| `npm run verify:production` | Ejecuta check, audit, verificación de Supabase e integración real. |
 | `npm run check` | Ejecuta lint, typecheck, pruebas y build en ese orden. |
 
 ## Ejecución en desarrollo
@@ -107,6 +113,10 @@ Vitest, antes de que se cargue `src/config/env.ts`. Esto permite clonar
 el repositorio y ejecutar `npm install && npm test` sin ningún paso
 manual de configuración.
 
+Las pruebas bajo `tests/integration/` sí usan el `.env` local y se ejecutan de
+forma explícita con `npm run test:integration`. Solo consultan readiness y
+catálogo; no crean usuarios, cursos ni filas.
+
 ## Estructura del proyecto
 
 ```
@@ -132,6 +142,8 @@ academix-backend/
 │   ├── middleware/
 │   │   ├── error-handler.ts    # manejador central de errores (JSON, sin stack trace al cliente)
 │   │   ├── require-auth.ts      # valida Authorization: Bearer con Supabase Auth
+│   │   ├── rate-limit.ts        # cuotas generales y reforzadas para Auth
+│   │   ├── request-context.ts   # X-Request-Id y logs estructurados
 │   │   └── not-found.ts        # 404 en formato JSON consistente
 │   ├── services/                # Auth y reglas de perfil/catálogo
 │   ├── types/
@@ -173,6 +185,22 @@ curl http://localhost:3000/api/v1/health
   }
 }
 ```
+
+`GET /api/v1/health/ready` comprueba además la conexión real de solo lectura a
+Postgres y responde `503 SERVICE_UNAVAILABLE` sin filtrar detalles cuando la
+dependencia no está disponible. Usa liveness y readiness por separado en el
+proveedor de despliegue.
+
+## Cierre de producción
+
+La Fase 10 agrega límites por IP, configuración explícita de proxy,
+`X-Request-Id`, logs JSON, `Cache-Control: no-store` en datos sensibles y
+pruebas de integración opt-in. El limitador incluido usa memoria por proceso;
+si el backend se escala horizontalmente debe configurarse un store compartido.
+
+- Contrato procesable: [`docs/openapi.yaml`](docs/openapi.yaml)
+- Validación final: [`docs/phase-10-validation.md`](docs/phase-10-validation.md)
+- Checklist de despliegue: [`docs/production-checklist.md`](docs/production-checklist.md)
 
 ## Autenticación
 
@@ -293,14 +321,17 @@ La guía de prueba manual está en
 
 ## Reseñas y certificados
 
-Las Fases 8 y 9 permiten que un alumno publique una sola reseña después de finalizar
-el curso. El catálogo calcula `rating` y `reviewCount` exclusivamente con
-reseñas activas y visibles. Un administrador puede ocultar una reseña indicando
-el motivo; la moderación es lógica y no elimina el contenido.
+La Fase 8 permite que un alumno publique una sola reseña después de finalizar
+el curso. El catálogo calcula `rating` y `reviewCount` mediante una agregación
+en PostgreSQL que considera exclusivamente reseñas activas y visibles. El
+público puede consultar esas reseñas con paginación y un administrador dispone
+de una bandeja filtrable para ocultarlas o restaurarlas sin eliminar contenido.
 
 | Método | Ruta | Protección |
 |---|---|---|
+| `GET` | `/api/v1/courses/:courseId/reviews` | Pública vía Express |
 | `POST` | `/api/v1/courses/:courseId/reviews` | Bearer token + curso finalizado |
+| `GET` | `/api/v1/admin/reviews` | Bearer token + `admin` |
 | `PATCH` | `/api/v1/admin/reviews/:reviewId/moderation` | Bearer token + `admin` |
 | `GET` | `/api/v1/users/me/certificates` | Bearer token |
 | `GET` | `/api/v1/users/me/certificates/:certificateId` | Bearer token + propietario |
@@ -310,10 +341,15 @@ Cuando el progreso completa todas las lecciones activas, PostgreSQL finaliza la
 inscripción y emite de forma idempotente un certificado Academix si el curso lo
 permite. El código `ACX-AAAA-XXXXXXXXXXXX` es único y verificable; si la
 inscripción deja de estar finalizada, el certificado se revoca lógicamente.
-React nunca consulta `certificados` ni `resenas_cursos` directamente.
+El nombre del alumno, título, duración, fecha y emisor se guardan como una
+fotografía inmutable del momento de emisión. Cada credencial tiene una firma
+SHA-256 de Academix que el backend valida antes de entregar su detalle o
+confirmar públicamente su autenticidad. React nunca consulta `certificados` ni
+`resenas_cursos` directamente.
 
-La guía de prueba manual está en
-[`docs/phase-8-9-validation.md`](docs/phase-8-9-validation.md).
+Las guías de prueba manual están en
+[`docs/phase-8-validation.md`](docs/phase-8-validation.md) y
+[`docs/phase-9-validation.md`](docs/phase-9-validation.md).
 
 ### Cualquier ruta no existente
 
@@ -400,6 +436,10 @@ de emisión automática, revocación y verificación de certificados de
 finalización. Sus funciones son `SECURITY INVOKER` y solo `service_role` puede
 ejecutarlas.
 
+`phase_9_certificate_integrity` completa credenciales inmutables con emisor
+Academix, firma SHA-256, validación de integridad y permisos mínimos sin
+recrear la tabla ni reemplazar certificados existentes.
+
 ## Fases oficiales
 
 1. ~~Fundamentos y arquitectura base.~~
@@ -409,8 +449,8 @@ ejecutarlas.
 5. ~~Catálogo de cursos.~~
 6. ~~Inscripciones y progreso del estudiante.~~
 7. ~~Aula virtual y contenido educativo.~~
-8. **Reseñas y calificaciones** — implementación adelantada; falta validación integral con datos reales.
-9. **Certificados** — implementación adelantada; falta validación integral y conexión visual.
+8. ~~Reseñas y calificaciones.~~
+9. ~~Certificados.~~
 10. **Integración final, seguridad, pruebas y producción.**
 
 La regularización 6.5 alinea documentación, recuperación de contraseña,
