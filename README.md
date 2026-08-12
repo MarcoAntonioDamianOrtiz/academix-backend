@@ -284,8 +284,9 @@ permitidos.
 
 Los alumnos reciben contenido dentro del aula y descargan archivos mediante
 `GET /api/v1/lessons/:lessonId/resources/:resourceId/content`. El backend
-comprueba la inscripción y actúa como proxy: React nunca recibe la clave
-secreta, la ruta interna ni una URL directa de Supabase Storage.
+comprueba la inscripción y actúa como proxy con streaming y rangos HTTP para
+video/audio: React nunca recibe la clave secreta, la ruta interna ni una URL
+directa de Supabase Storage.
 
 La guía de prueba manual está en
 [`docs/phase-7-validation.md`](docs/phase-7-validation.md).
@@ -407,7 +408,7 @@ ejecutarlas.
 4. ~~Usuarios, roles y perfiles.~~
 5. ~~Catálogo de cursos.~~
 6. ~~Inscripciones y progreso del estudiante.~~
-7. **Aula virtual y contenido educativo** — base adelantada; falta cerrar reproducción eficiente y validación real.
+7. ~~Aula virtual y contenido educativo.~~
 8. **Reseñas y calificaciones** — implementación adelantada; falta validación integral con datos reales.
 9. **Certificados** — implementación adelantada; falta validación integral y conexión visual.
 10. **Integración final, seguridad, pruebas y producción.**

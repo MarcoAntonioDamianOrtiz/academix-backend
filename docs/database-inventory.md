@@ -84,6 +84,11 @@ migración confirmó las cuatro concesiones y ninguna exposición pública.
   contenido cuando el curso está publicado o archivado.
 - `anon`, `authenticated` y `PUBLIC` siguen sin acceso directo. Express usa
   `service_role` y descarga desde Storage solo después de autorizar al usuario.
+- La reproducción protegida transmite desde Storage mediante Express y admite
+  rangos de bytes `200/206`; no almacena el objeto completo en memoria ni
+  expone rutas internas o URLs firmadas.
+- El cierre de la fase no requiere otra migración porque no agrega ni modifica
+  objetos de PostgreSQL o Storage.
 
 ## Reseñas y certificados — Fases 8 y 9
 

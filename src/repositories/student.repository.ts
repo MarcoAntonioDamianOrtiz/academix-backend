@@ -1,4 +1,6 @@
+import { Readable } from "node:stream";
 import { supabaseAdmin } from "../config/supabase";
+import { env } from "../config/env";
 import { AppError } from "../errors/app-error";
 
 interface EnrollmentRow {
@@ -55,6 +57,13 @@ export interface ProtectedResourceFile {
   sizeBytes: number;
 }
 
+export interface ProtectedStorageObject {
+  stream: Readable;
+  status: 200 | 206;
+  contentLength: string | null;
+  contentRange: string | null;
+}
+
 export interface StudentEnrollmentRecord {
   id: string;
   courseId: string;
@@ -98,7 +107,7 @@ export interface StudentRepository {
   findProtectedResource(lessonId: string, resourceId: string): Promise<ProtectedResourceFile | null>;
   hasCourseAccess(userId: string, courseId: string): Promise<boolean>;
   isInstructorAssigned(userId: string, courseId: string): Promise<boolean>;
-  downloadStorageObject(path: string): Promise<Buffer>;
+  openStorageObject(path: string, range: string | null): Promise<ProtectedStorageObject>;
 }
 
 function databaseFailure(error?: { message?: string; code?: string }): AppError {
@@ -386,13 +395,30 @@ export const studentRepository: StudentRepository = {
     return (count ?? 0) > 0;
   },
 
-  async downloadStorageObject(path) {
-    const { data, error } = await supabaseAdmin.storage
-      .from("academix-course-content")
-      .download(path);
-    if (error || !data) {
+  async openStorageObject(path, range) {
+    const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+    const headers: Record<string, string> = {
+      apikey: env.SUPABASE_SECRET_KEY,
+      Authorization: `Bearer ${env.SUPABASE_SECRET_KEY}`,
+    };
+    if (range) headers.Range = range;
+
+    const response = await fetch(
+      `${env.SUPABASE_URL}/storage/v1/object/authenticated/academix-course-content/${encodedPath}`,
+      { headers }
+    );
+    if (
+      ![200, 206].includes(response.status) ||
+      !response.body ||
+      (range !== null && response.status !== 206)
+    ) {
       throw new AppError(502, "STORAGE_DOWNLOAD_FAILED", "No fue posible descargar el archivo.");
     }
-    return Buffer.from(await data.arrayBuffer());
+    return {
+      stream: Readable.fromWeb(response.body),
+      status: response.status as 200 | 206,
+      contentLength: response.headers.get("content-length"),
+      contentRange: response.headers.get("content-range"),
+    };
   },
 };

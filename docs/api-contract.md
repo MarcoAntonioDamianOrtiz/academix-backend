@@ -274,7 +274,10 @@ regresa a `Activa`.
 Cada lección incluye ahora `content` y `resources`. Para archivos, el backend
 entrega un `contentPath` bajo `/api/v1`; para enlaces externos entrega `url`.
 La descarga valida inscripción activa/finalizada o permisos de autoría y
-responde con `Cache-Control: private, no-store`.
+responde con `Cache-Control: private, no-store`. También acepta un único rango
+`Range: bytes=inicio-fin`: transmite el objeto sin cargarlo completo en memoria
+y devuelve `206`, `Accept-Ranges` y `Content-Range`. Un rango inválido devuelve
+`416 INVALID_RANGE`. Los tipos reproducibles usan `Content-Disposition: inline`.
 
 ## Reseñas y certificados
 

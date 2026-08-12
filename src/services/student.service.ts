@@ -28,6 +28,38 @@ function hasLearningAccess(enrollment: StudentEnrollmentRecord): boolean {
   return ["activa", "finalizada"].includes(normalized(enrollment.databaseStatus));
 }
 
+export function normalizeByteRange(range: string | undefined, size: number): string | null {
+  if (!range) return null;
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(range.trim());
+  if (!match || (!match[1] && !match[2]) || size <= 0) {
+    throw new AppError(416, "INVALID_RANGE", "El rango solicitado no es válido.");
+  }
+
+  const startText = match[1] ?? "";
+  const endText = match[2] ?? "";
+  if (!startText) {
+    const suffixLength = Number(endText);
+    if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) {
+      throw new AppError(416, "INVALID_RANGE", "El rango solicitado no es válido.");
+    }
+    const start = Math.max(size - suffixLength, 0);
+    return `bytes=${start}-${size - 1}`;
+  }
+
+  const start = Number(startText);
+  const requestedEnd = endText ? Number(endText) : size - 1;
+  if (
+    !Number.isSafeInteger(start) ||
+    !Number.isSafeInteger(requestedEnd) ||
+    start < 0 ||
+    start >= size ||
+    requestedEnd < start
+  ) {
+    throw new AppError(416, "INVALID_RANGE", "El rango solicitado no es válido.");
+  }
+  return `bytes=${start}-${Math.min(requestedEnd, size - 1)}`;
+}
+
 export function createStudentService(
   repository: StudentRepository,
   courses: CatalogRepository
@@ -151,7 +183,8 @@ export function createStudentService(
       userId: string,
       actorRole: AppRole,
       lessonId: string,
-      resourceId: string
+      resourceId: string,
+      rangeHeader?: string
     ) {
       const file = await repository.findProtectedResource(lessonId, resourceId);
       if (!file) {
@@ -169,9 +202,10 @@ export function createStudentService(
       if (!allowed) {
         throw new AppError(403, "RESOURCE_ACCESS_DENIED", "No tienes acceso a este recurso.");
       }
+      const range = normalizeByteRange(rangeHeader, file.sizeBytes);
       return {
         ...file,
-        data: await repository.downloadStorageObject(file.storagePath),
+        ...(await repository.openStorageObject(file.storagePath, range)),
       };
     },
   };

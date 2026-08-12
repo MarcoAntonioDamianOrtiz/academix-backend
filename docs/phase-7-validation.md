@@ -8,8 +8,8 @@ integración final. No compartas contraseñas ni tokens en el chat.
 ```bash
 cd ~/CursosWeb/academix-backend
 git checkout feat/backend-architecture
-git apply --check ~/Downloads/academix_phase_5_course_content.patch
-git apply ~/Downloads/academix_phase_5_course_content.patch
+git apply --check ~/Downloads/academix_phase_7_virtual_classroom.patch
+git apply ~/Downloads/academix_phase_7_virtual_classroom.patch
 npm ci
 npm run check
 npm audit --omit=dev
@@ -17,8 +17,12 @@ git diff --check
 git status --short
 ```
 
-Resultado esperado: 14 archivos de pruebas, 77 pruebas aprobadas, lint,
+Resultado esperado: 18 archivos de pruebas, 98 pruebas aprobadas, lint,
 typecheck y build correctos; auditoría de producción sin vulnerabilidades.
+
+Esta fase no contiene una migración nueva. El esquema y el bucket requeridos
+ya existen, por lo que no se debe volver a ejecutar
+`course_content_authoring_storage`.
 
 ## 2. Iniciar el backend
 
@@ -141,3 +145,28 @@ curl -i -X PATCH "$API_URL/lessons/$LESSON_ID/progress" \
 
 El resultado esperado es `204` y 100 % de progreso cuando sea la única
 lección activa.
+
+## 9. Verificar reproducción parcial
+
+Para un recurso MP4, solicita un fragmento. La respuesta debe ser `206`, no
+debe descargar el video completo y nunca debe redirigir a Supabase:
+
+```bash
+curl -i "$API_URL/lessons/$LESSON_ID/resources/$RESOURCE_ID/content" \
+  -H "Authorization: Bearer $STUDENT_TOKEN" \
+  -H "Range: bytes=0-1023" \
+  -o fragmento.bin
+```
+
+Las cabeceras esperadas son:
+
+```text
+HTTP/1.1 206 Partial Content
+Accept-Ranges: bytes
+Content-Range: bytes 0-1023/TOTAL
+Cache-Control: private, no-store
+Content-Disposition: inline; ...
+```
+
+Un rango múltiple o fuera del tamaño registrado debe responder `416` con el
+código seguro `INVALID_RANGE`.

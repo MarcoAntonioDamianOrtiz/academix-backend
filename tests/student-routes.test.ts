@@ -1,4 +1,5 @@
 import request from "supertest";
+import { Readable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppError } from "../src/errors/app-error";
 
@@ -116,7 +117,10 @@ describe("rutas de inscripción y progreso", () => {
       originalName: "guía.pdf",
       mimeType: "application/pdf",
       sizeBytes: 4,
-      data: Buffer.from("PDF!"),
+      stream: Readable.from("PDF!"),
+      status: 200,
+      contentLength: "4",
+      contentRange: null,
     });
     const resourceId = "55555555-5555-4555-8555-555555555555";
     const response = await request(app)
@@ -128,7 +132,41 @@ describe("rutas de inscripción y progreso", () => {
       user.id,
       user.role,
       lessonId,
-      resourceId
+      resourceId,
+      undefined
+    );
+  });
+
+  it("propaga Range y responde 206 para reproducción parcial", async () => {
+    vi.mocked(authService.verifyAccessToken).mockResolvedValue(user);
+    vi.mocked(studentService.getResourceContent).mockResolvedValue({
+      courseId,
+      storagePath: "courses/video.mp4",
+      originalName: "video.mp4",
+      mimeType: "video/mp4",
+      sizeBytes: 1_000,
+      stream: Readable.from("VIDEO"),
+      status: 206,
+      contentLength: "5",
+      contentRange: "bytes 100-104/1000",
+    });
+    const resourceId = "55555555-5555-4555-8555-555555555555";
+
+    const response = await request(app)
+      .get(`/api/v1/lessons/${lessonId}/resources/${resourceId}/content`)
+      .set("Authorization", "Bearer token")
+      .set("Range", "bytes=100-104");
+
+    expect(response.status).toBe(206);
+    expect(response.headers["accept-ranges"]).toBe("bytes");
+    expect(response.headers["content-range"]).toBe("bytes 100-104/1000");
+    expect(response.headers["content-disposition"]).toContain("inline");
+    expect(studentService.getResourceContent).toHaveBeenCalledWith(
+      user.id,
+      user.role,
+      lessonId,
+      resourceId,
+      "bytes=100-104"
     );
   });
 

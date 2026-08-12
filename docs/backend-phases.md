@@ -12,7 +12,7 @@ migración; eso no cambia el alcance oficial.
 | 4 | Usuarios, roles y perfiles | Completa |
 | 5 | Catálogo de cursos | Completa; requiere datos reales para validación integral |
 | 6 | Inscripciones y progreso | Completa; requiere datos reales para validación integral |
-| 7 | Aula virtual y contenido educativo | Base implementada; siguiente fase oficial a cerrar |
+| 7 | Aula virtual y contenido educativo | Completa: autoría, acceso, streaming y progreso |
 | 8 | Reseñas y calificaciones | Implementada anticipadamente; pendiente validación integral |
 | 9 | Certificados | Implementada anticipadamente; pendiente validación e integración visual |
 | 10 | Integración final, seguridad y producción | Pendiente |

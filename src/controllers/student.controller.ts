@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { pipeline } from "node:stream/promises";
 import { AppError } from "../errors/app-error";
 import {
   enrollmentCourseIdentifierSchema,
@@ -60,18 +61,33 @@ export async function downloadLessonResource(req: Request, res: Response, next: 
       req.auth.user.id,
       req.auth.user.role,
       lessonId,
-      resourceId
+      resourceId,
+      req.header("range")
     );
     const fallbackName = file.originalName.replace(/[\r\n"]/g, "_");
     res.setHeader("Content-Type", file.mimeType);
-    res.setHeader("Content-Length", String(file.data.length));
+    res.setHeader("Accept-Ranges", "bytes");
+    if (file.contentLength) {
+      res.setHeader("Content-Length", file.contentLength);
+    } else if (file.status === 200) {
+      res.setHeader("Content-Length", String(file.sizeBytes));
+    }
+    if (file.contentRange) res.setHeader("Content-Range", file.contentRange);
+    const disposition = /^(audio|image|text|video)\//.test(file.mimeType) || file.mimeType === "application/pdf"
+      ? "inline"
+      : "attachment";
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="${fallbackName}"; filename*=UTF-8''${encodeURIComponent(file.originalName)}`
+      `${disposition}; filename="${fallbackName}"; filename*=UTF-8''${encodeURIComponent(file.originalName)}`
     );
     res.setHeader("Cache-Control", "private, no-store");
-    res.send(file.data);
+    res.status(file.status);
+    await pipeline(file.stream, res);
   } catch (error) {
+    if (res.headersSent) {
+      res.destroy();
+      return;
+    }
     next(error);
   }
 }

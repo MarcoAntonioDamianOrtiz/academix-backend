@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { Readable } from "node:stream";
 import type {
   CatalogCourseRecord,
   CatalogRepository,
@@ -52,7 +53,12 @@ function studentRepository(overrides: Partial<StudentRepository> = {}): StudentR
     findProtectedResource: vi.fn().mockResolvedValue(null),
     hasCourseAccess: vi.fn().mockResolvedValue(false),
     isInstructorAssigned: vi.fn().mockResolvedValue(false),
-    downloadStorageObject: vi.fn().mockResolvedValue(Buffer.from("contenido")),
+    openStorageObject: vi.fn().mockResolvedValue({
+      stream: Readable.from("contenido"),
+      status: 200,
+      contentLength: "9",
+      contentRange: null,
+    }),
     ...overrides,
   };
 }
@@ -211,7 +217,66 @@ describe("servicio del estudiante", () => {
       "55555555-5555-4555-8555-555555555555"
     );
 
-    expect(result.data.toString()).toBe("contenido");
-    expect(repository.downloadStorageObject).toHaveBeenCalledWith("courses/file.pdf");
+    expect(result.status).toBe(200);
+    expect(repository.openStorageObject).toHaveBeenCalledWith("courses/file.pdf", null);
+  });
+
+  it("normaliza el rango para reproducir solo una parte del recurso", async () => {
+    const repository = studentRepository({
+      findProtectedResource: vi.fn().mockResolvedValue({
+        courseId,
+        storagePath: "courses/video.mp4",
+        originalName: "video.mp4",
+        mimeType: "video/mp4",
+        sizeBytes: 1_000,
+      }),
+      hasCourseAccess: vi.fn().mockResolvedValue(true),
+      openStorageObject: vi.fn().mockResolvedValue({
+        stream: Readable.from("fragmento"),
+        status: 206,
+        contentLength: "100",
+        contentRange: "bytes 100-199/1000",
+      }),
+    });
+    const service = createStudentService(repository, catalogRepository());
+
+    const result = await service.getResourceContent(
+      userId,
+      "student",
+      lessonId,
+      "55555555-5555-4555-8555-555555555555",
+      "bytes=100-199"
+    );
+
+    expect(result.status).toBe(206);
+    expect(repository.openStorageObject).toHaveBeenCalledWith(
+      "courses/video.mp4",
+      "bytes=100-199"
+    );
+  });
+
+  it("rechaza rangos múltiples o fuera del tamaño del archivo", async () => {
+    const repository = studentRepository({
+      findProtectedResource: vi.fn().mockResolvedValue({
+        courseId,
+        storagePath: "courses/video.mp4",
+        originalName: "video.mp4",
+        mimeType: "video/mp4",
+        sizeBytes: 1_000,
+      }),
+      hasCourseAccess: vi.fn().mockResolvedValue(true),
+    });
+    const service = createStudentService(repository, catalogRepository());
+
+    await expect(
+      service.getResourceContent(
+        userId,
+        "student",
+        lessonId,
+        "55555555-5555-4555-8555-555555555555",
+        "bytes=1000-1200"
+      )
+    ).rejects.toMatchObject({ status: 416, code: "INVALID_RANGE" });
+    expect(repository.openStorageObject).not.toHaveBeenCalled();
   });
 });
