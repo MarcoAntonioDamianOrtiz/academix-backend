@@ -51,6 +51,7 @@ cp .env.example .env
 | `SUPABASE_URL` | **Sí** | URL del proyecto `academix` en Supabase. |
 | `SUPABASE_PUBLISHABLE_KEY` | **Sí** | Clave publicable moderna para operaciones de Auth. |
 | `SUPABASE_SECRET_KEY` | **Sí** | Clave secreta exclusiva del backend para perfiles y roles. |
+| `PASSWORD_RESET_REDIRECT_URL` | **Sí** | URL completa del formulario del frontend al que vuelve el correo de recuperación. Debe estar permitida en Supabase Auth. |
 
 Todas las variables se leen y validan en un único lugar: `src/config/env.ts`.
 Ningún otro archivo accede a `process.env` directamente.
@@ -67,6 +68,7 @@ Ningún otro archivo accede a `process.env` directamente.
 | `npm run test` | Corre las pruebas con Vitest. **No requiere `.env`**: `vitest.config.ts` inyecta variables de entorno seguras solo para la ejecución de pruebas (ver más abajo). |
 | `npm run test:watch` | Mantiene Vitest observando cambios durante el desarrollo. |
 | `npm run admin:bootstrap -- --email correo` | Asigna una sola vez el primer Administrador a una cuenta ya registrada. |
+| `npm run supabase:verify` | Comprueba de forma no destructiva las 37 tablas y el bucket privado usando el `.env` local. |
 | `npm run check` | Ejecuta lint, typecheck, pruebas y build en ese orden. |
 
 ## Ejecución en desarrollo
@@ -179,6 +181,7 @@ curl http://localhost:3000/api/v1/health
 | `POST` | `/api/v1/auth/register` | Pública |
 | `POST` | `/api/v1/auth/login` | Pública |
 | `POST` | `/api/v1/auth/password-reset` | Pública |
+| `PATCH` | `/api/v1/auth/password` | Bearer token de recuperación |
 | `GET` | `/api/v1/auth/me` | Bearer token |
 | `POST` | `/api/v1/auth/logout` | Bearer token |
 
@@ -186,6 +189,11 @@ El registro recibe `{ fullName, email, password }`. Login devuelve el
 `AuthSession` esperado por el frontend: `{ user, accessToken, expiresAt }`.
 Si la confirmación de correo está activa en Supabase, el registro responde
 `403 EMAIL_CONFIRMATION_REQUIRED` hasta que el usuario confirme su cuenta.
+
+La recuperación envía al usuario a `PASSWORD_RESET_REDIRECT_URL`. La pantalla
+del frontend obtiene el token de recuperación y envía
+`PATCH /api/v1/auth/password` con `{ "password": "nueva-clave" }`. Después del
+cambio, el backend revoca las sesiones mediante el cliente administrativo.
 
 Para proteger cualquier router futuro, agrega `requireAuth` antes del
 controlador. El middleware valida el token contra Supabase Auth y deja la
@@ -264,11 +272,11 @@ el progreso usan funciones atómicas de PostgreSQL; al completar todas las
 lecciones activas, la inscripción cambia automáticamente a `completed`.
 
 La guía de validación manual de esta fase está en
-[`docs/phase-4-validation.md`](docs/phase-4-validation.md).
+[`docs/phase-6-validation.md`](docs/phase-6-validation.md).
 
 ## Autoría de contenido y archivos privados
 
-La Fase 5 agrega módulos, lecciones, contenido textual, recursos externos y
+La Fase 7 agrega módulos, lecciones, contenido textual, recursos externos y
 archivos de curso. Administradores e instructores autorizados usan únicamente
 `/api/v1/authoring/*`; las cargas binarias pasan por Express y se almacenan en
 el bucket privado `academix-course-content` con un límite de 25 MB y tipos MIME
@@ -280,11 +288,11 @@ comprueba la inscripción y actúa como proxy: React nunca recibe la clave
 secreta, la ruta interna ni una URL directa de Supabase Storage.
 
 La guía de prueba manual está en
-[`docs/phase-5-validation.md`](docs/phase-5-validation.md).
+[`docs/phase-7-validation.md`](docs/phase-7-validation.md).
 
 ## Reseñas y certificados
 
-La Fase 6 permite que un alumno publique una sola reseña después de finalizar
+Las Fases 8 y 9 permiten que un alumno publique una sola reseña después de finalizar
 el curso. El catálogo calcula `rating` y `reviewCount` exclusivamente con
 reseñas activas y visibles. Un administrador puede ocultar una reseña indicando
 el motivo; la moderación es lógica y no elimina el contenido.
@@ -304,7 +312,7 @@ inscripción deja de estar finalizada, el certificado se revoca lógicamente.
 React nunca consulta `certificados` ni `resenas_cursos` directamente.
 
 La guía de prueba manual está en
-[`docs/phase-6-validation.md`](docs/phase-6-validation.md).
+[`docs/phase-8-9-validation.md`](docs/phase-8-9-validation.md).
 
 ### Cualquier ruta no existente
 
@@ -370,7 +378,7 @@ asigna el rol `Alumno`, habilita RLS y revoca el acceso directo de los roles
 `anon` y `authenticated` a las tablas de identidad.
 
 Las migraciones `secure_backend_only_data_api` y `extend_profiles_catalog`
-extienden esa protección a las 36 tablas públicas, agregan perfiles de
+extienden esa protección a las 37 tablas públicas, agregan perfiles de
 instructores, slugs e índices del catálogo. El inventario verificado está en
 [`docs/database-inventory.md`](docs/database-inventory.md).
 
@@ -391,11 +399,22 @@ de emisión automática, revocación y verificación de certificados de
 finalización. Sus funciones son `SECURITY INVOKER` y solo `service_role` puede
 ejecutarlas.
 
-## Fases siguientes
+## Fases oficiales
 
-1. ~~Seguridad backend-only, perfiles y catálogo inicial.~~
-2. ~~Administración de cursos, instructores y autorización por rol.~~
-3. ~~Inscripciones, aula y progreso.~~
-4. ~~Autoría de contenido y archivos privados.~~
-5. ~~Reseñas y certificados.~~
-6. **Integración completa con el frontend y despliegue.**
+1. ~~Fundamentos y arquitectura base.~~
+2. ~~Autenticación y seguridad con Supabase.~~
+3. ~~Modelo de datos y migraciones.~~
+4. ~~Usuarios, roles y perfiles.~~
+5. ~~Catálogo de cursos.~~
+6. ~~Inscripciones y progreso del estudiante.~~
+7. **Aula virtual y contenido educativo** — base adelantada; falta cerrar reproducción eficiente y validación real.
+8. **Reseñas y calificaciones** — implementación adelantada; falta validación integral con datos reales.
+9. **Certificados** — implementación adelantada; falta validación integral y conexión visual.
+10. **Integración final, seguridad, pruebas y producción.**
+
+La regularización 6.5 alinea documentación, recuperación de contraseña,
+verificación operativa e índices antes de cerrar formalmente la Fase 7. El
+detalle de correspondencia está en
+[`docs/backend-phases.md`](docs/backend-phases.md).
+Su guía de configuración y prueba está en
+[`docs/phase-6-5-validation.md`](docs/phase-6-5-validation.md).

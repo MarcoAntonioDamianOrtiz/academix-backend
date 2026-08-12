@@ -1,7 +1,12 @@
 import type { AuthError, Session, User } from "@supabase/supabase-js";
 import { supabaseAdmin, supabaseAuth } from "../config/supabase";
+import { env } from "../config/env";
 import { AppError } from "../errors/app-error";
-import type { SignInInput, SignUpInput } from "../schemas/auth.schemas";
+import type {
+  SignInInput,
+  SignUpInput,
+  UpdatePasswordInput,
+} from "../schemas/auth.schemas";
 
 export interface AuthUser {
   id: string;
@@ -140,7 +145,7 @@ export const authService = {
   },
 
   async signOut(accessToken: string): Promise<void> {
-    const { error } = await supabaseAuth.auth.admin.signOut(accessToken, "local");
+    const { error } = await supabaseAdmin.auth.admin.signOut(accessToken, "local");
 
     if (error && error.status !== 401 && error.status !== 403 && error.status !== 404) {
       throw authFailure(error);
@@ -148,12 +153,50 @@ export const authService = {
   },
 
   async requestPasswordReset(email: string): Promise<void> {
-    const { error } = await supabaseAuth.auth.resetPasswordForEmail(email);
+    const { error } = await supabaseAuth.auth.resetPasswordForEmail(email, {
+      redirectTo: env.PASSWORD_RESET_REDIRECT_URL,
+    });
     if (error?.status === 429) throw authFailure(error);
     if (error) {
       throw new AppError(502, "AUTH_PROVIDER_ERROR", "No fue posible solicitar la recuperación.");
     }
 
     // La respuesta es deliberadamente neutra para no revelar si la cuenta existe.
+  },
+
+  async updatePassword(
+    userId: string,
+    accessToken: string,
+    input: UpdatePasswordInput
+  ): Promise<void> {
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      password: input.password,
+    });
+    if (error?.status === 422) {
+      throw new AppError(
+        422,
+        "PASSWORD_REJECTED",
+        "La contraseña no cumple los requisitos de seguridad."
+      );
+    }
+    if (error) {
+      throw new AppError(
+        502,
+        "AUTH_PROVIDER_ERROR",
+        "No fue posible actualizar la contraseña."
+      );
+    }
+
+    const { error: signOutError } = await supabaseAdmin.auth.admin.signOut(
+      accessToken,
+      "global"
+    );
+    if (signOutError && ![401, 403, 404].includes(signOutError.status ?? 0)) {
+      throw new AppError(
+        502,
+        "SESSION_REVOCATION_FAILED",
+        "La contraseña cambió, pero no fue posible cerrar las sesiones."
+      );
+    }
   },
 };

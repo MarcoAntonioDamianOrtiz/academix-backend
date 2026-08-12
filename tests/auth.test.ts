@@ -8,6 +8,7 @@ vi.mock("../src/services/auth.service", () => ({
     verifyAccessToken: vi.fn(),
     signOut: vi.fn(),
     requestPasswordReset: vi.fn(),
+    updatePassword: vi.fn(),
   },
 }));
 
@@ -126,5 +127,34 @@ describe("Auth y rutas protegidas", () => {
       .send({ email: "ana@example.com" });
 
     expect(response.status).toBe(204);
+  });
+
+  it("actualiza la contraseña del usuario verificado", async () => {
+    vi.mocked(authService.verifyAccessToken).mockResolvedValue(user);
+    vi.mocked(authService.updatePassword).mockResolvedValue(undefined);
+
+    const response = await request(app)
+      .patch("/api/v1/auth/password")
+      .set("Authorization", "Bearer recovery.jwt.token")
+      .send({ password: "nueva-contraseña-segura" });
+
+    expect(response.status).toBe(204);
+    expect(authService.updatePassword).toHaveBeenCalledWith(
+      user.id,
+      "recovery.jwt.token",
+      { password: "nueva-contraseña-segura" }
+    );
+  });
+
+  it("rechaza una contraseña nueva demasiado corta", async () => {
+    vi.mocked(authService.verifyAccessToken).mockResolvedValue(user);
+
+    const response = await request(app)
+      .patch("/api/v1/auth/password")
+      .set("Authorization", "Bearer recovery.jwt.token")
+      .send({ password: "corta" });
+
+    expect(response.status).toBe(422);
+    expect(authService.updatePassword).not.toHaveBeenCalled();
   });
 });

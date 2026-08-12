@@ -18,6 +18,8 @@ export default defineConfig({
       SUPABASE_URL: "https://example.supabase.co",
       SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
       SUPABASE_SECRET_KEY: "sb_secret_test",
+      PASSWORD_RESET_REDIRECT_URL:
+        "http://localhost:5173/CursosWeb/",
     },
   },
 });

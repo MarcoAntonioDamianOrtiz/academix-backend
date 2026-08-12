@@ -1,4 +1,4 @@
-# Inventario de Supabase — Fase 6
+# Inventario de Supabase — regularización 6.5
 
 Proyecto inspeccionado: `academix` (`kosvorqvtwbajfkyvsne`). El esquema
 `public` contiene 37 tablas después de esta fase. La migración es incremental:
@@ -44,7 +44,7 @@ migración confirmó las cuatro concesiones y ninguna exposición pública.
 | `cursos` | Se agregó `slug` obligatorio y único. |
 | `cursos_instructores` | Solo puede existir un instructor principal por curso. |
 
-## Cambios de la Fase 3
+## Modelo, perfiles y catálogo — Fases 3 a 5
 
 - `perfiles_instructores` y `cursos_instructores` permiten desactivación lógica.
 - Categorías y cursos registran creación, actualización y usuario responsable.
@@ -56,7 +56,7 @@ migración confirmó las cuatro concesiones y ninguna exposición pública.
 - El último administrador no puede perder su rol y los cursos no se eliminan:
   pasan al estado `Archivado`.
 
-## Cambios de la Fase 4
+## Inscripciones y progreso — Fase 6
 
 - `inscripciones` y `progreso_lecciones` conservan su modelo y reciben fecha
   de actualización automática.
@@ -70,7 +70,7 @@ migración confirmó las cuatro concesiones y ninguna exposición pública.
 - Ambas funciones son `SECURITY INVOKER`, sin ejecución para `anon`,
   `authenticated` ni `PUBLIC`; únicamente `service_role` puede llamarlas.
 
-## Cambios de la Fase 5
+## Aula y contenido — Fase 7
 
 - Se creó el bucket privado `academix-course-content`, con límite de 25 MB y
   lista explícita de MIME permitidos.
@@ -85,7 +85,7 @@ migración confirmó las cuatro concesiones y ninguna exposición pública.
 - `anon`, `authenticated` y `PUBLIC` siguen sin acceso directo. Express usa
   `service_role` y descarga desde Storage solo después de autorizar al usuario.
 
-## Cambios de la Fase 6
+## Reseñas y certificados — Fases 8 y 9
 
 - `resenas_cursos` vincula una reseña con una inscripción finalizada y exige
   calificación 1–5, comentario de 10–2000 caracteres y unicidad por inscripción.
@@ -99,6 +99,15 @@ migración confirmó las cuatro concesiones y ninguna exposición pública.
 - Las RPC de creación y moderación son `SECURITY INVOKER`. `PUBLIC`, `anon` y
   `authenticated` no pueden ejecutarlas; solo `service_role` accede desde
   Express.
+
+## Regularización 6.5
+
+- Se agregan los siete índices de claves foráneas pendientes informados por el
+  asesor de rendimiento de Supabase.
+- Los índices cubren evaluaciones, reportes, ejecuciones, resultados y
+  verificaciones sin modificar ni eliminar filas.
+- `npm run supabase:verify` comprueba las 37 tablas públicas y que
+  `academix-course-content` continúe siendo privado.
 
 Los índices nuevos cubren los filtros iniciales del catálogo y las claves
 foráneas que usa esta fase. Los avisos de índices sin uso se conservaron porque
@@ -116,3 +125,4 @@ las tablas de negocio aún están vacías y no existe tráfico representativo.
 | `20260811194549` | `index_enrollment_foreign_keys` |
 | `20260811201127` | `course_content_authoring_storage` |
 | `20260812031205` | `reviews_certificates` |
+| `20260812035330` | `phase_6_5_foreign_key_indexes` |

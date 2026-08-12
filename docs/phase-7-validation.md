@@ -1,4 +1,4 @@
-# Validación manual — Fase 5
+# Validación manual — Fase 7
 
 Esta fase se prueba contra el backend. El frontend se conectará en la fase de
 integración final. No compartas contraseñas ni tokens en el chat.

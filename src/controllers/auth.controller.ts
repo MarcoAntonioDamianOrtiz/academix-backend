@@ -4,6 +4,7 @@ import {
   passwordResetSchema,
   signInSchema,
   signUpSchema,
+  updatePasswordSchema,
 } from "../schemas/auth.schemas";
 import { authService } from "../services/auth.service";
 import { successResponse } from "../utils/api-response";
@@ -53,6 +54,24 @@ export async function signOut(req: Request, res: Response, next: NextFunction): 
   try {
     if (!req.auth) throw new AppError(401, "AUTH_REQUIRED", "Debes iniciar sesión.");
     await authService.signOut(req.auth.accessToken);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updatePassword(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    if (!req.auth) throw new AppError(401, "AUTH_REQUIRED", "Debes iniciar sesión.");
+    await authService.updatePassword(
+      req.auth.user.id,
+      req.auth.accessToken,
+      updatePasswordSchema.parse(req.body)
+    );
     res.status(204).send();
   } catch (error) {
     next(error);

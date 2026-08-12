@@ -67,6 +67,13 @@ const envSchema = z.object({
   SUPABASE_SECRET_KEY: z
     .string({ required_error: "SUPABASE_SECRET_KEY es obligatoria." })
     .min(1),
+  PASSWORD_RESET_REDIRECT_URL: z
+    .string({ required_error: "PASSWORD_RESET_REDIRECT_URL es obligatoria." })
+    .url("PASSWORD_RESET_REDIRECT_URL debe ser una URL válida.")
+    .refine(
+      (value) => ["http:", "https:"].includes(new URL(value).protocol),
+      "PASSWORD_RESET_REDIRECT_URL debe usar HTTP o HTTPS."
+    ),
 });
 
 const parsed = envSchema.safeParse(process.env);
