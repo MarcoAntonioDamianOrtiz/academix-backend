@@ -4,6 +4,7 @@ import type {
   CatalogRepository,
 } from "../src/repositories/catalog.repository";
 import { createCatalogService } from "../src/services/catalog.service";
+import type { CourseReviewReader } from "../src/services/review.service";
 
 const record: CatalogCourseRecord = {
   id: "22222222-2222-4222-8222-222222222222",
@@ -41,11 +42,24 @@ function repository(overrides: Partial<CatalogRepository> = {}): CatalogReposito
   };
 }
 
+function reviewReader(overrides: Partial<CourseReviewReader> = {}): CourseReviewReader {
+  return {
+    listCourseReviews: vi.fn().mockResolvedValue([]),
+    statsByCourseIds: vi.fn().mockResolvedValue(new Map()),
+    ...overrides,
+  };
+}
+
 describe("servicio de catálogo", () => {
   it("mapea el modelo SQL al contrato del frontend", async () => {
     const service = createCatalogService(
       repository({
         listCourses: vi.fn().mockResolvedValue({ records: [record], total: 1 }),
+      }),
+      reviewReader({
+        statsByCourseIds: vi.fn().mockResolvedValue(
+          new Map([[record.id, { rating: 4.6, reviewCount: 12 }]])
+        ),
       })
     );
 
@@ -55,8 +69,8 @@ describe("servicio de catálogo", () => {
       id: record.id,
       level: "intermediate",
       price: 125.5,
-      rating: 0,
-      reviewCount: 0,
+      rating: 4.6,
+      reviewCount: 12,
     });
     expect(result.pagination).toEqual({ page: 1, limit: 12, total: 1, totalPages: 1 });
   });
@@ -66,6 +80,18 @@ describe("servicio de catálogo", () => {
       repository({
         findCourse: vi.fn().mockResolvedValue(record),
         listRelatedCourses: vi.fn().mockResolvedValue([]),
+      }),
+      reviewReader({
+        listCourseReviews: vi.fn().mockResolvedValue([
+          {
+            id: "33333333-3333-4333-8333-333333333333",
+            authorId: "44444444-4444-4444-8444-444444444444",
+            authorName: "Luis López",
+            rating: 5,
+            comment: "Excelente contenido práctico.",
+            createdAt: "2026-08-12T00:00:00.000Z",
+          },
+        ]),
       })
     );
 
@@ -73,6 +99,9 @@ describe("servicio de catálogo", () => {
 
     expect(detail.learningOutcomes).toEqual(["Primer objetivo", "Segundo objetivo"]);
     expect(detail.requirements).toEqual(["Navegador", "Conexión a internet"]);
+    expect(detail.rating).toBe(5);
+    expect(detail.reviewCount).toBe(1);
+    expect(detail.reviews[0]?.authorName).toBe("Luis López");
   });
 
   it("no publica registros sin instructor principal", async () => {
@@ -82,7 +111,8 @@ describe("servicio de catálogo", () => {
           records: [{ ...record, instructor: null }],
           total: 1,
         }),
-      })
+      }),
+      reviewReader()
     );
 
     const result = await service.listCourses({ page: 1, limit: 12 });
@@ -91,7 +121,7 @@ describe("servicio de catálogo", () => {
   });
 
   it("devuelve COURSE_NOT_FOUND para un detalle inexistente", async () => {
-    const service = createCatalogService(repository());
+    const service = createCatalogService(repository(), reviewReader());
 
     await expect(service.getCourse("no-existe")).rejects.toMatchObject({
       status: 404,

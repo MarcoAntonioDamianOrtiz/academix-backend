@@ -7,6 +7,8 @@ import healthRoutes from "./health.routes";
 import instructorRoutes from "./instructor.routes";
 import profileRoutes from "./profile.routes";
 import studentRoutes from "./student.routes";
+import certificateRoutes from "./certificate.routes";
+import reviewRoutes from "./review.routes";
 
 /**
  * Punto único donde se registran todos los routers de /api/v1.
@@ -22,6 +24,8 @@ router.use("/authoring", authoringRoutes);
 router.use("/admin", administrationRoutes);
 router.use("/instructor", instructorRoutes);
 router.use(studentRoutes);
+router.use(certificateRoutes);
+router.use(reviewRoutes);
 router.use(catalogRoutes);
 router.use("/users", profileRoutes);
 

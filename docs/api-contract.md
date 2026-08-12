@@ -100,9 +100,9 @@ después iniciar sesión.
 | `limit` | integer | Entre 1 y 50; default 12. |
 
 El catálogo solo devuelve cursos activos con estado `Publicado` e instructor
-principal. Mientras la fase de reseñas no esté implementada, `rating` y
-`reviewCount` valen `0`. `related` devuelve hasta cuatro cursos publicados de
-la misma categoría.
+principal. `rating` y `reviewCount` se calculan usando únicamente reseñas
+activas y visibles; ambos valen `0` si el curso todavía no tiene reseñas.
+`related` devuelve hasta cuatro cursos publicados de la misma categoría.
 
 ```json
 {
@@ -269,10 +269,32 @@ responde con `Cache-Control: private, no-store`.
 | POST | `/courses/:courseId/reviews` | Sí | `CourseReview` |
 | GET | `/users/me/certificates` | Sí | `CertificateSummary[]` |
 | GET | `/users/me/certificates/:certificateId` | Sí | `CertificateDetail` |
+| GET | `/certificates/verify/:credentialCode` | No | `VerifiedCertificate` |
+| PATCH | `/admin/reviews/:reviewId/moderation` | admin | `ReviewModerationResult` |
 
-Solo un estudiante que cumpla la regla de finalización puede publicar una
-reseña. El backend emite el certificado al alcanzar los criterios del curso y
-genera un `credentialCode` único.
+`POST /courses/:courseId/reviews` recibe una calificación entera de 1 a 5 y un
+comentario de 10 a 2000 caracteres:
+
+```json
+{ "rating": 5, "comment": "Contenido claro y muy completo." }
+```
+
+Solo un estudiante con una inscripción activa en estado `Finalizada` puede
+publicar; se admite una reseña por inscripción. Una duplicada responde
+`409 REVIEW_ALREADY_EXISTS` y un curso no finalizado responde
+`403 COURSE_COMPLETION_REQUIRED`.
+
+La moderación recibe `{ "visible": false, "reason": "Motivo" }`; el motivo es
+obligatorio al ocultar. No elimina filas y las reseñas ocultas dejan de afectar
+el detalle, el promedio y la cantidad pública del curso.
+
+El backend emite el certificado automáticamente al finalizar todas las
+lecciones activas de un curso que permita certificado. La lista devuelve
+`CertificateSummary`; el detalle propio y la verificación pública incluyen
+nombre del destinatario y duración. La verificación solo acepta códigos con
+formato `ACX-AAAA-XXXXXXXXXXXX` y nunca expone correo, UUID de usuario ni datos
+internos. Una credencial inexistente o revocada responde
+`404 CERTIFICATE_NOT_FOUND`.
 
 ## Códigos esperados
 

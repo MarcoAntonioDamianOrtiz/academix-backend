@@ -1,7 +1,7 @@
-# Inventario de Supabase — Fase 5
+# Inventario de Supabase — Fase 6
 
 Proyecto inspeccionado: `academix` (`kosvorqvtwbajfkyvsne`). El esquema
-`public` contiene 36 tablas después de esta fase. La migración es incremental:
+`public` contiene 37 tablas después de esta fase. La migración es incremental:
 no se eliminó ni se recreó ninguna tabla existente.
 
 ## Tablas por dominio
@@ -10,13 +10,13 @@ no se eliminó ni se recreó ninguna tabla existente.
 |---|---|
 | Identidad y perfiles | `roles`, `usuarios`, `usuarios_roles`, `perfiles_instructores`, `estados_verificacion`, `solicitudes_verificacion_utt` |
 | Catálogo y contenido | `niveles`, `idiomas`, `modalidades`, `categorias`, `estados_curso`, `cursos`, `cursos_instructores`, `modulos`, `lecciones`, `tipos_recurso`, `recursos`, `tipos_archivo`, `archivos` |
-| Inscripciones y evaluación | `metodos_pago`, `estados_pago`, `estados_inscripcion`, `inscripciones`, `progreso_lecciones`, `evaluaciones`, `preguntas_evaluacion`, `resultados_evaluacion` |
+| Inscripciones y evaluación | `metodos_pago`, `estados_pago`, `estados_inscripcion`, `inscripciones`, `progreso_lecciones`, `evaluaciones`, `preguntas_evaluacion`, `resultados_evaluacion`, `resenas_cursos` |
 | Certificados | `tipos_certificado`, `certificados` |
 | Operación | `configuraciones_sistema`, `tipos_accion_auditoria`, `auditoria_sistema`, `sesiones_usuario`, `reportes`, `ejecuciones_reporte`, `notificaciones` |
 
 ## Seguridad
 
-- Las 36 tablas tienen RLS habilitado.
+- Las 37 tablas tienen RLS habilitado.
 - `anon` y `authenticated` no tienen privilegios directos sobre tablas o
   secuencias de `public`.
 - No existen políticas para esas claves porque el acceso directo desde React
@@ -85,6 +85,21 @@ migración confirmó las cuatro concesiones y ninguna exposición pública.
 - `anon`, `authenticated` y `PUBLIC` siguen sin acceso directo. Express usa
   `service_role` y descarga desde Storage solo después de autorizar al usuario.
 
+## Cambios de la Fase 6
+
+- `resenas_cursos` vincula una reseña con una inscripción finalizada y exige
+  calificación 1–5, comentario de 10–2000 caracteres y unicidad por inscripción.
+- La visibilidad y el motivo permiten moderación lógica auditada sin borrar
+  reseñas. Solo las activas y visibles participan en el catálogo.
+- `certificados` conserva su tabla y datos; se agregan actualización, revocación
+  y unicidad por usuario + curso.
+- Un trigger sobre `inscripciones` emite o reactiva el certificado de
+  finalización de forma idempotente y lo revoca si la inscripción deja de
+  cumplir las condiciones.
+- Las RPC de creación y moderación son `SECURITY INVOKER`. `PUBLIC`, `anon` y
+  `authenticated` no pueden ejecutarlas; solo `service_role` accede desde
+  Express.
+
 Los índices nuevos cubren los filtros iniciales del catálogo y las claves
 foráneas que usa esta fase. Los avisos de índices sin uso se conservaron porque
 las tablas de negocio aún están vacías y no existe tráfico representativo.
@@ -100,3 +115,4 @@ las tablas de negocio aún están vacías y no existe tráfico representativo.
 | `20260811194429` | `student_enrollments_progress` |
 | `20260811194549` | `index_enrollment_foreign_keys` |
 | `20260811201127` | `course_content_authoring_storage` |
+| `20260812031205` | `reviews_certificates` |

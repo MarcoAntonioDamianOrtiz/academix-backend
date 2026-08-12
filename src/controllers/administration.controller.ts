@@ -15,6 +15,8 @@ import {
   userListQuerySchema,
 } from "../schemas/administration.schemas";
 import { administrationService } from "../services/administration.service";
+import { moderateReviewSchema, reviewIdentifierSchema } from "../schemas/review.schemas";
+import { reviewService } from "../services/review.service";
 import { paginatedResponse, successResponse } from "../utils/api-response";
 
 function actor(req: Request) {
@@ -101,4 +103,10 @@ export const publishCourse = handler(async (req, res) => {
 export const archiveCourse = handler(async (req, res) => {
   const { courseId } = managedCourseIdentifierSchema.parse(req.params);
   res.json(successResponse(await administrationService.archiveCourse(courseId, actor(req).id)));
+});
+
+export const moderateReview = handler(async (req, res) => {
+  const { reviewId } = reviewIdentifierSchema.parse(req.params);
+  const input = moderateReviewSchema.parse(req.body);
+  res.json(successResponse(await reviewService.moderateReview(reviewId, input, actor(req).id)));
 });

@@ -282,6 +282,30 @@ secreta, la ruta interna ni una URL directa de Supabase Storage.
 La guía de prueba manual está en
 [`docs/phase-5-validation.md`](docs/phase-5-validation.md).
 
+## Reseñas y certificados
+
+La Fase 6 permite que un alumno publique una sola reseña después de finalizar
+el curso. El catálogo calcula `rating` y `reviewCount` exclusivamente con
+reseñas activas y visibles. Un administrador puede ocultar una reseña indicando
+el motivo; la moderación es lógica y no elimina el contenido.
+
+| Método | Ruta | Protección |
+|---|---|---|
+| `POST` | `/api/v1/courses/:courseId/reviews` | Bearer token + curso finalizado |
+| `PATCH` | `/api/v1/admin/reviews/:reviewId/moderation` | Bearer token + `admin` |
+| `GET` | `/api/v1/users/me/certificates` | Bearer token |
+| `GET` | `/api/v1/users/me/certificates/:certificateId` | Bearer token + propietario |
+| `GET` | `/api/v1/certificates/verify/:credentialCode` | Pública vía Express |
+
+Cuando el progreso completa todas las lecciones activas, PostgreSQL finaliza la
+inscripción y emite de forma idempotente un certificado Academix si el curso lo
+permite. El código `ACX-AAAA-XXXXXXXXXXXX` es único y verificable; si la
+inscripción deja de estar finalizada, el certificado se revoca lógicamente.
+React nunca consulta `certificados` ni `resenas_cursos` directamente.
+
+La guía de prueba manual está en
+[`docs/phase-6-validation.md`](docs/phase-6-validation.md).
+
 ### Cualquier ruta no existente
 
 ```bash
@@ -362,11 +386,16 @@ para el frontend.
 contenido, crea el bucket privado y bloquea cambios en cursos publicados o
 archivados sin eliminar datos existentes.
 
+`reviews_certificates` agrega reseñas verificadas y moderación lógica, además
+de emisión automática, revocación y verificación de certificados de
+finalización. Sus funciones son `SECURITY INVOKER` y solo `service_role` puede
+ejecutarlas.
+
 ## Fases siguientes
 
 1. ~~Seguridad backend-only, perfiles y catálogo inicial.~~
 2. ~~Administración de cursos, instructores y autorización por rol.~~
 3. ~~Inscripciones, aula y progreso.~~
 4. ~~Autoría de contenido y archivos privados.~~
-5. **Reseñas y certificados.**
+5. ~~Reseñas y certificados.~~
 6. **Integración completa con el frontend y despliegue.**

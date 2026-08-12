@@ -1,3 +1,5 @@
+import type { CourseReview } from "./review.types";
+
 export type CourseLevel = "beginner" | "intermediate" | "advanced";
 
 export interface CourseCategory {
@@ -57,6 +59,6 @@ export interface CourseDetail extends CourseSummary {
   requirements: string[];
   language: string;
   modules: CourseModule[];
-  reviews: never[];
+  reviews: CourseReview[];
   relatedCourseIds: string[];
 }
