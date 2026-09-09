@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { AppError } from "../errors/app-error";
 import {
+  createCourseSchema,
   managedCourseIdentifierSchema,
   managedCourseListQuerySchema,
   updateCourseSchema,
@@ -23,6 +24,16 @@ export async function listInstructorManagedCourses(req: Request, res: Response, 
   }
 }
 
+export async function createInstructorCourse(req: Request, res: Response, next: NextFunction) {
+  try {
+    const input = createCourseSchema.parse(req.body);
+    const user = actor(req);
+    res.status(201).json(successResponse(await administrationService.createCourseForInstructor(input, user.id, user.role)));
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function updateInstructorCourse(req: Request, res: Response, next: NextFunction) {
   try {
     const { courseId } = managedCourseIdentifierSchema.parse(req.params);
@@ -39,6 +50,16 @@ export async function submitInstructorCourse(req: Request, res: Response, next: 
     const { courseId } = managedCourseIdentifierSchema.parse(req.params);
     const user = actor(req);
     res.json(successResponse(await administrationService.submitCourse(courseId, user.id, user.role)));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function archiveInstructorCourse(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { courseId } = managedCourseIdentifierSchema.parse(req.params);
+    const user = actor(req);
+    res.json(successResponse(await administrationService.archiveOwnCourse(courseId, user.id, user.role)));
   } catch (error) {
     next(error);
   }

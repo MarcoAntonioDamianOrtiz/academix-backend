@@ -99,6 +99,8 @@ export interface StudentLearningModuleRecord {
 
 export interface StudentRepository {
   enroll(userId: string, courseId: string): Promise<string>;
+  courseOrganizationId(courseId: string): Promise<string | null>;
+  isActiveOrganizationMember(userId: string, organizationId: string): Promise<boolean>;
   listEnrollments(userId: string): Promise<StudentEnrollmentRecord[]>;
   findEnrollment(userId: string, courseId: string): Promise<StudentEnrollmentRecord | null>;
   listLearningModules(courseId: string): Promise<StudentLearningModuleRecord[]>;
@@ -217,6 +219,29 @@ export const studentRepository: StudentRepository = {
     const result = data as { enrollmentId?: string } | null;
     if (!result?.enrollmentId) throw databaseFailure();
     return result.enrollmentId;
+  },
+
+  async courseOrganizationId(courseId) {
+    const { data, error } = await supabaseAdmin
+      .from("cursos")
+      .select("fk_organizacion")
+      .eq("id_curso", courseId)
+      .eq("activo", true)
+      .maybeSingle();
+    if (error) throw databaseFailure(error);
+    return (data as { fk_organizacion: string | null } | null)?.fk_organizacion ?? null;
+  },
+
+  async isActiveOrganizationMember(userId, organizationId) {
+    const { data, error } = await supabaseAdmin
+      .from("miembros_organizacion")
+      .select("id_miembro")
+      .eq("fk_usuario", userId)
+      .eq("fk_organizacion", organizationId)
+      .eq("activo", true)
+      .maybeSingle();
+    if (error) throw databaseFailure(error);
+    return Boolean(data);
   },
 
   async listEnrollments(userId) {

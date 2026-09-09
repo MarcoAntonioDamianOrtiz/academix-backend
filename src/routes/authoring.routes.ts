@@ -11,10 +11,9 @@ import {
   uploadCourseFile,
 } from "../controllers/authoring.controller";
 import { requireAuth } from "../middleware/require-auth";
-import { requireRole } from "../middleware/require-role";
 
 const router = Router();
-router.use(requireAuth, requireRole("admin", "instructor"));
+router.use(requireAuth);
 router.get("/resource-options", resourceOptions);
 router.get("/courses/:courseId/content", getCourseContent);
 router.post("/courses/:courseId/modules", createModule);

@@ -1,4 +1,4 @@
-export type CourseContentStatus = "draft" | "review" | "published" | "archived";
+export type CourseContentStatus = "draft" | "review" | "published" | "archived" | "moderated";
 
 export interface AuthoringResource {
   id: string;

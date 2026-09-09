@@ -41,4 +41,23 @@ describe("controles HTTP de producción", () => {
     expect(response.headers).toHaveProperty("ratelimit");
     expect(response.headers).not.toHaveProperty("x-ratelimit-limit");
   });
+
+  it("autoriza la cabecera necesaria para cargar archivos desde el navegador", async () => {
+    const response = await request(createApp())
+      .options("/api/v1/authoring/courses/11111111-1111-4111-8111-111111111111/files")
+      .set("Origin", "http://localhost:5173")
+      .set("Access-Control-Request-Method", "POST")
+      .set("Access-Control-Request-Headers", "authorization,content-type,x-file-name");
+    expect(response.status).toBe(204);
+    expect(response.headers["access-control-allow-headers"].toLowerCase()).toContain("x-file-name");
+  });
+
+  it("no penaliza respuestas exitosas cuando el limitador se configura para autenticación", async () => {
+    const app = express();
+    app.use(createRateLimiter(1, "auth-test", { skipSuccessfulRequests: true }));
+    app.get("/login", (_req, res) => res.status(200).json({ ok: true }));
+
+    await request(app).get("/login").expect(200);
+    await request(app).get("/login").expect(200);
+  });
 });

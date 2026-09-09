@@ -33,6 +33,18 @@ export async function listCourses(
   }
 }
 
+export async function listFeaturedCourses(
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    res.json(successResponse(await catalogService.listFeaturedCourses()));
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function getCourse(
   req: Request,
   res: Response,

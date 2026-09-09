@@ -45,6 +45,8 @@ const course: CatalogCourseRecord = {
 function studentRepository(overrides: Partial<StudentRepository> = {}): StudentRepository {
   return {
     enroll: vi.fn().mockResolvedValue(enrollment.id),
+    courseOrganizationId: vi.fn().mockResolvedValue(null),
+    isActiveOrganizationMember: vi.fn().mockResolvedValue(false),
     listEnrollments: vi.fn().mockResolvedValue([]),
     findEnrollment: vi.fn().mockResolvedValue(enrollment),
     listLearningModules: vi.fn().mockResolvedValue([]),
@@ -67,6 +69,7 @@ function catalogRepository(overrides: Partial<CatalogRepository> = {}): CatalogR
   return {
     listCategories: vi.fn().mockResolvedValue([]),
     listCourses: vi.fn().mockResolvedValue({ records: [], total: 0 }),
+    listFeaturedCourses: vi.fn().mockResolvedValue([]),
     listCoursesByIds: vi.fn().mockResolvedValue([course]),
     findCourse: vi.fn().mockResolvedValue(course),
     listRelatedCourses: vi.fn().mockResolvedValue([]),
@@ -92,6 +95,33 @@ describe("servicio del estudiante", () => {
       completedLessons: 1,
       totalLessons: 2,
     });
+  });
+
+  it("reserva los cursos institucionales para miembros activos de la organización", async () => {
+    const organizationId = "55555555-5555-4555-8555-555555555555";
+    const repository = studentRepository({
+      courseOrganizationId: vi.fn().mockResolvedValue(organizationId),
+      isActiveOrganizationMember: vi.fn().mockResolvedValue(false),
+    });
+    const service = createStudentService(repository, catalogRepository());
+
+    await expect(service.enroll(userId, courseId)).rejects.toMatchObject({
+      status: 403,
+      code: "ORGANIZATION_MEMBERSHIP_REQUIRED",
+    });
+    expect(repository.enroll).not.toHaveBeenCalled();
+  });
+
+  it("permite al miembro activo inscribirse sin pago en el curso institucional", async () => {
+    const organizationId = "55555555-5555-4555-8555-555555555555";
+    const repository = studentRepository({
+      courseOrganizationId: vi.fn().mockResolvedValue(organizationId),
+      isActiveOrganizationMember: vi.fn().mockResolvedValue(true),
+    });
+    const service = createStudentService(repository, catalogRepository());
+
+    await expect(service.enroll(userId, courseId)).resolves.toMatchObject({ id: enrollment.id });
+    expect(repository.enroll).toHaveBeenCalledWith(userId, courseId);
   });
 
   it("devuelve la biblioteca sin consultas de catálogo N+1", async () => {

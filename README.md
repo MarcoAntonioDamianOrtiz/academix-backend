@@ -56,6 +56,7 @@ cp .env.example .env
 | `SUPABASE_PUBLISHABLE_KEY` | **Sí** | Clave publicable moderna para operaciones de Auth. |
 | `SUPABASE_SECRET_KEY` | **Sí** | Clave secreta exclusiva del backend para perfiles y roles. |
 | `PASSWORD_RESET_REDIRECT_URL` | **Sí** | URL completa del formulario del frontend al que vuelve el correo de recuperación. Debe estar permitida en Supabase Auth. |
+| `EMAIL_CONFIRMATION_REDIRECT_URL` | No | Raíz pública del frontend para confirmar correo. Si se omite, usa la URL de recuperación. Debe estar permitida en Supabase Auth. |
 
 Todas las variables se leen y validan en un único lugar: `src/config/env.ts`.
 Ningún otro archivo accede a `process.env` directamente.
@@ -264,11 +265,13 @@ datos; el backend nunca acepta el rol enviado por React.
 | `PUT` | `/api/v1/admin/courses/:courseId/instructor` |
 | `POST` | `/api/v1/admin/courses/:courseId/publish` |
 | `POST` | `/api/v1/admin/courses/:courseId/archive` |
+| `POST` | `/api/v1/admin/courses/:courseId/restore` |
 
-El instructor dispone de `GET /api/v1/instructor/courses`,
+El instructor dispone de `GET` y `POST /api/v1/instructor/courses`,
 `PATCH /api/v1/instructor/courses/:courseId` y
 `POST /api/v1/instructor/courses/:courseId/submit`. Solo puede modificar un
-borrador que tenga asignado. Publicar y archivar son operaciones de
+borrador que tenga asignado. Al crear uno, el backend lo asigna exclusivamente
+al instructor creador. Publicar, archivar y restaurar son operaciones de
 administrador y los cambios sensibles quedan auditados.
 
 Para crear el primer administrador, registra previamente la cuenta y ejecuta:
@@ -439,6 +442,10 @@ ejecutarlas.
 `phase_9_certificate_integrity` completa credenciales inmutables con emisor
 Academix, firma SHA-256, validación de integridad y permisos mínimos sin
 recrear la tabla ni reemplazar certificados existentes.
+
+`contact_messages` agrega la bandeja persistente del formulario público. La
+tabla conserva RLS y permisos cerrados para clientes; solo Express puede crear
+mensajes mediante `POST /api/v1/contact/messages`.
 
 ## Fases oficiales
 

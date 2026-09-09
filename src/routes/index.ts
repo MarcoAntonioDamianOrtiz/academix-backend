@@ -9,6 +9,10 @@ import profileRoutes from "./profile.routes";
 import studentRoutes from "./student.routes";
 import certificateRoutes from "./certificate.routes";
 import reviewRoutes from "./review.routes";
+import contactRoutes from "./contact.routes";
+import organizationRoutes from "./organization.routes";
+import notificationRoutes from "./notification.routes";
+import moderationRoutes from "./moderation.routes";
 
 /**
  * Punto único donde se registran todos los routers de /api/v1.
@@ -20,6 +24,10 @@ const router = Router();
 
 router.use(healthRoutes);
 router.use("/auth", authRoutes);
+router.use("/contact", contactRoutes);
+router.use("/organizations", organizationRoutes);
+router.use("/notifications", notificationRoutes);
+router.use("/moderation", moderationRoutes);
 router.use("/authoring", authoringRoutes);
 router.use("/admin", administrationRoutes);
 router.use("/instructor", instructorRoutes);

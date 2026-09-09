@@ -1,7 +1,7 @@
 import type { AuthUser } from "../services/auth.service";
 
 export type AppRole = AuthUser["role"];
-export type CourseWorkflowStatus = "draft" | "review" | "published" | "archived";
+export type CourseWorkflowStatus = "draft" | "review" | "published" | "archived" | "moderated";
 export type CourseModality = "self_paced" | "live" | "blended";
 
 export interface ManagedUser {
@@ -38,6 +38,7 @@ export interface ManagedCourse {
   price: number;
   certificateEnabled: boolean;
   requiresApproval: boolean;
+  organization: { id: string; name: string } | null;
   status: CourseWorkflowStatus;
   active: boolean;
   instructor: { id: string; name: string } | null;

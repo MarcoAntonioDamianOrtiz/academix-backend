@@ -33,6 +33,7 @@ function repository(overrides: Partial<CatalogRepository> = {}): CatalogReposito
   return {
     listCategories: vi.fn().mockResolvedValue([]),
     listCourses: vi.fn().mockResolvedValue({ records: [], total: 0 }),
+    listFeaturedCourses: vi.fn().mockResolvedValue([]),
     listCoursesByIds: vi.fn().mockResolvedValue([]),
     findCourse: vi.fn().mockResolvedValue(null),
     listRelatedCourses: vi.fn().mockResolvedValue([]),
@@ -73,6 +74,19 @@ describe("servicio de catálogo", () => {
       reviewCount: 12,
     });
     expect(result.pagination).toEqual({ page: 1, limit: 12, total: 1, totalPages: 1 });
+  });
+
+  it("devuelve como destacados los cursos independientes mejor posicionados por el repositorio", async () => {
+    const featuredRepository = repository({
+      listFeaturedCourses: vi.fn().mockResolvedValue([record]),
+    });
+    const service = createCatalogService(featuredRepository, reviewReader());
+
+    const result = await service.listFeaturedCourses();
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.id).toBe(record.id);
+    expect(featuredRepository.listFeaturedCourses).toHaveBeenCalledWith(5);
   });
 
   it("convierte objetivos y requisitos de texto en arreglos", async () => {

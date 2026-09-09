@@ -19,6 +19,7 @@ import type {
 
 interface CourseAccessRow {
   id_curso: string;
+  fk_organizacion: string | null;
   estados_curso: { nombre: string } | null;
 }
 
@@ -59,6 +60,7 @@ interface ResourceRow {
 
 export interface CourseAuthoringAccess {
   courseId: string;
+  organizationId: string | null;
   status: CourseContentStatus;
   assigned: boolean;
 }
@@ -98,6 +100,7 @@ function status(name?: string): CourseContentStatus {
   if (value === "en revision") return "review";
   if (value === "publicado") return "published";
   if (value === "archivado") return "archived";
+  if (value === "dado de baja por moderacion") return "moderated";
   return "draft";
 }
 
@@ -166,13 +169,17 @@ const RESOURCE_COLUMNS = "id_recurso,fk_leccion,fk_tipo_recurso,titulo,descripci
 
 export const authoringRepository: AuthoringRepository = {
   async courseAccess(courseId, actorId) {
-    const { data, error } = await supabaseAdmin.from("cursos").select("id_curso,estados_curso!fk_curso_estado(nombre)").eq("id_curso", courseId).eq("activo", true).maybeSingle();
+    const { data, error } = await supabaseAdmin
+      .from("cursos")
+      .select("id_curso,fk_organizacion,estados_curso!fk_curso_estado(nombre)")
+      .eq("id_curso", courseId)
+      .maybeSingle();
     if (error) throw databaseError(error);
     if (!data) return null;
     const { count, error: assignmentError } = await supabaseAdmin.from("cursos_instructores").select("id_curso_instructor", { count: "exact", head: true }).eq("fk_curso", courseId).eq("fk_usuario", actorId).eq("activo", true);
     if (assignmentError) throw databaseError(assignmentError);
     const row = data as unknown as CourseAccessRow;
-    return { courseId: row.id_curso, status: status(row.estados_curso?.nombre), assigned: (count ?? 0) > 0 };
+    return { courseId: row.id_curso, organizationId: row.fk_organizacion, status: status(row.estados_curso?.nombre), assigned: (count ?? 0) > 0 };
   },
 
   async moduleCourseId(moduleId) {
@@ -207,8 +214,15 @@ export const authoringRepository: AuthoringRepository = {
   },
 
   async listContent(courseId) {
-    const access = await this.courseAccess(courseId, "00000000-0000-0000-0000-000000000000");
-    if (!access) throw new AppError(404, "COURSE_NOT_FOUND", "El curso solicitado no existe.");
+    const { data: courseData, error: courseError } = await supabaseAdmin
+      .from("cursos")
+      .select("id_curso,estados_curso!fk_curso_estado(nombre)")
+      .eq("id_curso", courseId)
+      .maybeSingle();
+    if (courseError) throw databaseError(courseError);
+    if (!courseData) throw new AppError(404, "COURSE_NOT_FOUND", "El curso solicitado no existe.");
+    const courseRow = courseData as unknown as { id_curso: string; estados_curso: { nombre: string } | null };
+    const contentStatus = status(courseRow.estados_curso?.nombre);
     const { data: modulesData, error: modulesError } = await supabaseAdmin.from("modulos").select(MODULE_COLUMNS).eq("fk_curso", courseId).order("orden");
     if (modulesError) throw databaseError(modulesError);
     const moduleRows = (modulesData ?? []) as ModuleRow[];
@@ -224,7 +238,7 @@ export const authoringRepository: AuthoringRepository = {
     const lessons = lessonRows.map(lessonValue);
     for (const lesson of lessons) lesson.resources = resourceRows.filter((row) => row.fk_leccion === lesson.id).map(resourceValue);
     for (const module of modules) module.lessons = lessons.filter((lesson) => lessonRows.find((row) => row.id_leccion === lesson.id)?.fk_modulo === module.id);
-    return { courseId, status: access.status, modules };
+    return { courseId, status: contentStatus, modules };
   },
 
   async createModule(courseId, input, actorId) {

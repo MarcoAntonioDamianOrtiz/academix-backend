@@ -8,6 +8,7 @@ import {
   managedCourseIdentifierSchema,
   managedCourseListQuerySchema,
   setUserRolesSchema,
+  setUserStatusSchema,
   updateCategorySchema,
   updateCourseSchema,
   upsertInstructorSchema,
@@ -50,6 +51,12 @@ export const setUserRoles = handler(async (req, res) => {
   res.json(successResponse(await administrationService.setUserRoles(userId, input, actor(req).id)));
 });
 
+export const setUserStatus = handler(async (req, res) => {
+  const { userId } = userIdentifierSchema.parse(req.params);
+  const { active } = setUserStatusSchema.parse(req.body);
+  res.json(successResponse(await administrationService.setUserActive(userId, active, actor(req).id)));
+});
+
 export const listInstructors = handler(async (_req, res) => {
   res.json(successResponse(await administrationService.listInstructors()));
 });
@@ -63,6 +70,10 @@ export const upsertInstructor = handler(async (req, res) => {
 export const createCategory = handler(async (req, res) => {
   const input = createCategorySchema.parse(req.body);
   res.status(201).json(successResponse(await administrationService.createCategory(input, actor(req).id)));
+});
+
+export const listCategories = handler(async (_req, res) => {
+  res.json(successResponse(await administrationService.listCategories()));
 });
 
 export const updateCategory = handler(async (req, res) => {
@@ -107,6 +118,11 @@ export const publishCourse = handler(async (req, res) => {
 export const archiveCourse = handler(async (req, res) => {
   const { courseId } = managedCourseIdentifierSchema.parse(req.params);
   res.json(successResponse(await administrationService.archiveCourse(courseId, actor(req).id)));
+});
+
+export const restoreCourse = handler(async (req, res) => {
+  const { courseId } = managedCourseIdentifierSchema.parse(req.params);
+  res.json(successResponse(await administrationService.restoreCourse(courseId, actor(req).id)));
 });
 
 export const moderateReview = handler(async (req, res) => {

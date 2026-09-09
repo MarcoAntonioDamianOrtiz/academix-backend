@@ -83,6 +83,14 @@ const envSchema = z.object({
       (value) => ["http:", "https:"].includes(new URL(value).protocol),
       "PASSWORD_RESET_REDIRECT_URL debe usar HTTP o HTTPS."
     ),
+  EMAIL_CONFIRMATION_REDIRECT_URL: z
+    .string()
+    .url("EMAIL_CONFIRMATION_REDIRECT_URL debe ser una URL válida.")
+    .refine(
+      (value) => ["http:", "https:"].includes(new URL(value).protocol),
+      "EMAIL_CONFIRMATION_REDIRECT_URL debe usar HTTP o HTTPS."
+    )
+    .optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -97,5 +105,7 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+export const emailConfirmationRedirectUrl =
+  env.EMAIL_CONFIRMATION_REDIRECT_URL ?? env.PASSWORD_RESET_REDIRECT_URL;
 export const frontendOrigins = parseFrontendOrigins(env.FRONTEND_URL);
 export const isProduction = env.NODE_ENV === "production";

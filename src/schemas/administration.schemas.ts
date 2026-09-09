@@ -14,7 +14,7 @@ const paginationSchema = {
 
 export const userListQuerySchema = z.object({
   search: z.string().trim().min(1).max(100).optional(),
-  role: z.enum(["student", "instructor", "admin"]).optional(),
+  role: z.enum(["student", "instructor", "moderator", "admin"]).optional(),
   ...paginationSchema,
 });
 
@@ -22,11 +22,13 @@ export const userIdentifierSchema = z.object({
   userId: z.string().uuid("El identificador del usuario no es válido."),
 });
 
+export const setUserStatusSchema = z.object({ active: z.boolean() }).strict();
+
 export const setUserRolesSchema = z.object({
   roles: z
-    .array(z.enum(["student", "instructor", "admin"]))
+    .array(z.enum(["student", "instructor", "moderator", "admin"]))
     .min(1)
-    .max(3)
+    .max(4)
     .refine((roles) => new Set(roles).size === roles.length, "Los roles no deben repetirse."),
 });
 
@@ -73,6 +75,7 @@ const courseFields = {
   price: z.number().nonnegative().max(10_000_000).default(0),
   certificateEnabled: z.boolean().default(true),
   requiresApproval: z.boolean().default(false),
+  organizationId: z.string().uuid("El identificador de la organización no es válido.").nullable().optional(),
 };
 
 export const createCourseSchema = z.object(courseFields).strict();
@@ -110,7 +113,7 @@ export const assignInstructorSchema = z.object({
 
 export const managedCourseListQuerySchema = z.object({
   search: z.string().trim().min(1).max(100).optional(),
-  status: z.enum(["draft", "review", "published", "archived"]).optional(),
+  status: z.enum(["draft", "review", "published", "archived", "moderated"]).optional(),
   ...paginationSchema,
 });
 

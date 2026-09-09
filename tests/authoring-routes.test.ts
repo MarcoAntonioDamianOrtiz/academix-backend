@@ -31,12 +31,14 @@ describe("rutas de autoría", () => {
     expect((await request(app).get(`/api/v1/authoring/courses/${courseId}/content`)).status).toBe(401);
   });
 
-  it("rechaza al alumno aunque tenga JWT", async () => {
+  it("deja pasar al alumno autenticado para que el servicio valide si es instructor institucional", async () => {
     vi.mocked(authService.verifyAccessToken).mockResolvedValue(student);
+    vi.mocked(authoringService.getContent).mockResolvedValue({ courseId, status: "draft", modules: [] } as never);
     const response = await request(app)
       .get(`/api/v1/authoring/courses/${courseId}/content`)
       .set("Authorization", "Bearer token");
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(200);
+    expect(authoringService.getContent).toHaveBeenCalledWith(courseId, student.id, "student");
   });
 
   it("crea un módulo validado", async () => {

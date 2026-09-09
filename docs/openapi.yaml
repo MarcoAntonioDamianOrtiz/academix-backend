@@ -11,6 +11,7 @@ servers:
 tags:
   - name: Health
   - name: Auth
+  - name: Contact
   - name: Catalog
   - name: Student
   - name: Authoring
@@ -89,6 +90,28 @@ paths:
       responses:
         "204": { description: Sesión cerrada }
         "401": { $ref: "#/components/responses/Error" }
+  /contact/messages:
+    post:
+      tags: [Contact]
+      operationId: submitContactMessage
+      summary: Envía una solicitud al equipo de Academix
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [fullName, email, subject, message]
+              properties:
+                fullName: { type: string, minLength: 2, maxLength: 160 }
+                email: { type: string, format: email, maxLength: 254 }
+                subject: { type: string, minLength: 3, maxLength: 160 }
+                message: { type: string, minLength: 12, maxLength: 4000 }
+      responses:
+        "201": { $ref: "#/components/responses/Success" }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/RateLimited" }
   /categories:
     get:
       tags: [Catalog]

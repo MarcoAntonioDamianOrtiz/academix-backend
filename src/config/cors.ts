@@ -21,7 +21,7 @@ export const corsOptions: CorsOptions = {
       )
     );
   },
-  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Authorization", "Content-Type"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Authorization", "Content-Type", "X-File-Name"],
   maxAge: 600,
 };

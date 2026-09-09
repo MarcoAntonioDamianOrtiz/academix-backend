@@ -15,6 +15,7 @@ import type {
   UpdateResourceInput,
 } from "../schemas/authoring.schemas";
 import type { AppRole } from "../types/administration.types";
+import { organizationService } from "./organization.service";
 
 export const COURSE_CONTENT_BUCKET = "academix-course-content";
 export const MAX_COURSE_FILE_BYTES = 25 * 1024 * 1024;
@@ -48,20 +49,33 @@ function requireEntity<T>(value: T | null, code: string, message: string): T {
 
 export function createAuthoringService(repository: AuthoringRepository) {
   async function assertEditable(courseId: string, actorId: string, actorRole: AppRole) {
+    if (actorRole === "moderator") {
+      throw new AppError(403, "MODERATOR_READ_ONLY", "El rol Moderador solo puede revisar contenido desde el panel de moderación.");
+    }
     const access = requireEntity(
       await repository.courseAccess(courseId, actorId),
       "COURSE_NOT_FOUND",
       "El curso solicitado no existe."
     );
-    if (access.status === "published" || access.status === "archived") {
-      throw new AppError(409, "COURSE_CONTENT_IMMUTABLE", "El contenido publicado o archivado no se puede modificar.");
+    if (access.status === "archived") {
+      throw new AppError(409, "COURSE_CONTENT_IMMUTABLE", "Un curso dado de baja no se puede modificar.");
     }
-    if (actorRole === "instructor" && (!access.assigned || access.status !== "draft")) {
-      throw new AppError(
-        access.assigned ? 409 : 403,
-        access.assigned ? "COURSE_NOT_EDITABLE" : "COURSE_NOT_ASSIGNED",
-        access.assigned ? "El instructor solo puede editar cursos en borrador." : "Solo puedes modificar cursos asignados."
-      );
+    if (actorRole !== "admin") {
+      if (access.organizationId) {
+        await organizationService.canInstructorCreateCourse(access.organizationId, actorId);
+      } else if (actorRole !== "instructor") {
+        throw new AppError(
+          403,
+          "EXTERNAL_INSTRUCTOR_APPROVAL_REQUIRED",
+          "Para editar cursos independientes primero debes ser aprobado como instructor de Academix."
+        );
+      }
+    }
+    if (actorRole !== "admin" && !access.assigned) {
+      throw new AppError(403, "COURSE_NOT_ASSIGNED", "Solo puedes modificar cursos asignados.");
+    }
+    if (actorRole !== "admin" && access.status === "review") {
+      throw new AppError(409, "COURSE_UNDER_REVIEW", "El contenido no se puede modificar mientras Academix revisa el curso.");
     }
     return access;
   }

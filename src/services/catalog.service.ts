@@ -94,6 +94,10 @@ export function createCatalogService(
       };
     },
 
+    async listFeaturedCourses(): Promise<CourseSummary[]> {
+      return summaries(await repository.listFeaturedCourses(5));
+    },
+
     async getCourse(identifier: string): Promise<CourseDetail> {
       const record = await repository.findCourse(identifier);
       if (!record) {

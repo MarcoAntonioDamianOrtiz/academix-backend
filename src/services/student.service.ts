@@ -88,6 +88,17 @@ export function createStudentService(
 
   return {
     async enroll(userId: string, courseId: string): Promise<EnrollmentSummary> {
+      const organizationId = await repository.courseOrganizationId(courseId);
+      if (
+        organizationId &&
+        !(await repository.isActiveOrganizationMember(userId, organizationId))
+      ) {
+        throw new AppError(
+          403,
+          "ORGANIZATION_MEMBERSHIP_REQUIRED",
+          "Este curso está incluido en el plan de una organización y solo sus miembros activos pueden inscribirse."
+        );
+      }
       await repository.enroll(userId, courseId);
       const enrollment = await repository.findEnrollment(userId, courseId);
       if (!enrollment) {
@@ -196,6 +207,7 @@ export function createStudentService(
       }
       const allowed =
         actorRole === "admin" ||
+        actorRole === "moderator" ||
         (actorRole === "instructor" &&
           (await repository.isInstructorAssigned(userId, file.courseId))) ||
         (await repository.hasCourseAccess(userId, file.courseId));

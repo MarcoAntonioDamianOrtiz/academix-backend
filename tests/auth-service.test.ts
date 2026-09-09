@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   adminSignOut: vi.fn(),
   resetPasswordForEmail: vi.fn(),
   updateUserById: vi.fn(),
+  signUp: vi.fn(),
 }));
 
 vi.mock("../src/config/env", () => ({
@@ -11,11 +12,13 @@ vi.mock("../src/config/env", () => ({
     PASSWORD_RESET_REDIRECT_URL:
       "http://localhost:5173/CursosWeb/",
   },
+  emailConfirmationRedirectUrl: "http://localhost:5173/CursosWeb/",
 }));
 
 vi.mock("../src/config/supabase", () => ({
   supabaseAuth: {
     auth: {
+      signUp: mocks.signUp,
       resetPasswordForEmail: mocks.resetPasswordForEmail,
     },
   },
@@ -60,5 +63,8 @@ describe("servicio de autenticación administrativa", () => {
       password: "nueva-contraseña-segura",
     });
     expect(mocks.adminSignOut).toHaveBeenCalledWith("recovery-token", "global");
+    expect(mocks.adminSignOut.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.updateUserById.mock.invocationCallOrder[0]
+    );
   });
 });

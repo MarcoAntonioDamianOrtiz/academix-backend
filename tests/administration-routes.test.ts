@@ -16,15 +16,18 @@ vi.mock("../src/services/administration.service", () => ({
     setUserRoles: vi.fn(),
     listInstructors: vi.fn(),
     upsertInstructor: vi.fn(),
+    listCategories: vi.fn(),
     createCategory: vi.fn(),
     updateCategory: vi.fn(),
     courseOptions: vi.fn(),
     listCourses: vi.fn(),
     createCourse: vi.fn(),
+    createCourseForInstructor: vi.fn(),
     updateCourse: vi.fn(),
     assignPrincipalInstructor: vi.fn(),
     publishCourse: vi.fn(),
     archiveCourse: vi.fn(),
+    restoreCourse: vi.fn(),
     submitCourse: vi.fn(),
   },
 }));
@@ -66,6 +69,18 @@ describe("rutas administrativas e instructor", () => {
       .set("Authorization", "Bearer token");
     expect(response.status).toBe(200);
     expect(response.body.pagination.total).toBe(0);
+  });
+
+  it("lista categorías activas e inactivas para poder reactivarlas", async () => {
+    vi.mocked(authService.verifyAccessToken).mockResolvedValue(admin);
+    vi.mocked(administrationService.listCategories).mockResolvedValue([
+      { id: 1, name: "Programación", slug: "programacion", description: "", active: false },
+    ]);
+    const response = await request(app)
+      .get("/api/v1/admin/categories")
+      .set("Authorization", "Bearer token");
+    expect(response.status).toBe(200);
+    expect(response.body.data[0].active).toBe(false);
   });
 
   it("valida roles duplicados antes del servicio", async () => {

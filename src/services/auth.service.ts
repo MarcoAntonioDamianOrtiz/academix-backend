@@ -1,6 +1,6 @@
 import type { AuthError, Session, User } from "@supabase/supabase-js";
 import { supabaseAdmin, supabaseAuth } from "../config/supabase";
-import { env } from "../config/env";
+import { emailConfirmationRedirectUrl, env } from "../config/env";
 import { AppError } from "../errors/app-error";
 import type {
   SignInInput,
@@ -12,7 +12,7 @@ export interface AuthUser {
   id: string;
   fullName: string;
   email: string;
-  role: "student" | "instructor" | "admin";
+  role: "student" | "instructor" | "moderator" | "admin";
 }
 
 interface AuthSession {
@@ -24,6 +24,7 @@ interface AuthSession {
 function roleName(value: string | undefined): AuthUser["role"] {
   const normalized = value?.trim().toLowerCase();
   if (normalized === "administrador") return "admin";
+  if (normalized === "moderador") return "moderator";
   if (normalized === "instructor") return "instructor";
   return "student";
 }
@@ -36,6 +37,7 @@ function highestRole(
     .map((item) => roleName(item.roles?.nombre));
 
   if (activeRoles.includes("admin")) return "admin";
+  if (activeRoles.includes("moderator")) return "moderator";
   if (activeRoles.includes("instructor")) return "instructor";
   return "student";
 }
@@ -48,7 +50,7 @@ async function serializeUser(user: User): Promise<AuthUser> {
   const { data } = await supabaseAdmin
     .from("usuarios")
     .select(
-      "nombres, apellido_paterno, apellido_materno, usuarios_roles!fk_usuario_rol_usuario(activo, roles!fk_usuario_rol_rol(nombre))"
+      "nombres, apellido_paterno, apellido_materno, activo, usuarios_roles!fk_usuario_rol_usuario(activo, roles!fk_usuario_rol_rol(nombre))"
     )
     .eq("id_usuario", user.id)
     .maybeSingle();
@@ -58,9 +60,14 @@ async function serializeUser(user: User): Promise<AuthUser> {
         nombres: string;
         apellido_paterno: string;
         apellido_materno: string | null;
+        activo: boolean;
         usuarios_roles: Array<{ activo: boolean; roles: { nombre: string } | null }>;
       }
     | null;
+  if (profile && !profile.activo) {
+    throw new AppError(403, "ACCOUNT_INACTIVE", "Tu cuenta está desactivada. Contacta a un administrador de Academix.");
+  }
+
   const storedName = profile
     ? [profile.nombres, profile.apellido_paterno, profile.apellido_materno]
         .filter(Boolean)
@@ -106,6 +113,7 @@ export const authService = {
       email: input.email,
       password: input.password,
       options: {
+        emailRedirectTo: emailConfirmationRedirectUrl,
         data: {
           full_name: input.fullName,
         },
@@ -169,6 +177,18 @@ export const authService = {
     accessToken: string,
     input: UpdatePasswordInput
   ): Promise<void> {
+    const { error: signOutError } = await supabaseAdmin.auth.admin.signOut(
+      accessToken,
+      "global"
+    );
+    if (signOutError && ![401, 403, 404].includes(signOutError.status ?? 0)) {
+      throw new AppError(
+        502,
+        "SESSION_REVOCATION_FAILED",
+        "No fue posible cerrar las sesiones. La contraseña no se modificó."
+      );
+    }
+
     const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
       password: input.password,
     });
@@ -187,16 +207,5 @@ export const authService = {
       );
     }
 
-    const { error: signOutError } = await supabaseAdmin.auth.admin.signOut(
-      accessToken,
-      "global"
-    );
-    if (signOutError && ![401, 403, 404].includes(signOutError.status ?? 0)) {
-      throw new AppError(
-        502,
-        "SESSION_REVOCATION_FAILED",
-        "La contraseña cambió, pero no fue posible cerrar las sesiones."
-      );
-    }
   },
 };

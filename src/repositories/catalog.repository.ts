@@ -123,6 +123,7 @@ export interface CatalogCourseRecord {
 export interface CatalogRepository {
   listCategories(): Promise<CatalogCategoryRecord[]>;
   listCourses(input: CourseListQuery): Promise<{ records: CatalogCourseRecord[]; total: number }>;
+  listFeaturedCourses(limit: number): Promise<CatalogCourseRecord[]>;
   listCoursesByIds(courseIds: string[]): Promise<CatalogCourseRecord[]>;
   findCourse(identifier: string): Promise<CatalogCourseRecord | null>;
   listRelatedCourses(courseId: string, categoryId: number): Promise<CatalogCourseRecord[]>;
@@ -356,6 +357,7 @@ async function publishedRows(options: {
   courseIds?: string[];
   categoryId?: number;
   excludeCourseId?: string;
+  independentOnly?: boolean;
   limit?: number;
 }): Promise<{ rows: CourseRow[]; total: number }> {
   const stateId = await publishedStateId();
@@ -381,6 +383,7 @@ async function publishedRows(options: {
     .order("fecha_publicacion", { ascending: false, nullsFirst: false })
     .order("id_curso", { ascending: true });
 
+  if (options.independentOnly) query = query.is("fk_organizacion", null);
   if (resolvedCategoryId !== undefined) query = query.eq("fk_categoria", resolvedCategoryId);
   if (resolvedLevelId !== undefined) query = query.eq("fk_nivel", resolvedLevelId);
   if (options.courseIds) query = query.in("id_curso", options.courseIds);
@@ -422,6 +425,45 @@ export const catalogRepository: CatalogRepository = {
   async listCourses(input) {
     const { rows, total } = await publishedRows({ input });
     return { records: await hydrateCourses(rows), total };
+  },
+
+  async listFeaturedCourses(limit) {
+    const { rows } = await publishedRows({ independentOnly: true });
+    if (rows.length === 0) return [];
+
+    const { data: stateData, error: stateError } = await supabaseAdmin
+      .from("estados_inscripcion")
+      .select("id_estado_inscripcion")
+      .in("nombre", ["Activa", "Finalizada"])
+      .eq("activo", true);
+    if (stateError) throw databaseFailure();
+    const stateIds = (stateData ?? []).map((state) => Number(state.id_estado_inscripcion));
+    if (stateIds.length === 0) return hydrateCourses(rows.slice(0, Math.max(1, Math.min(limit, 5))));
+
+    const { data, error } = await supabaseAdmin
+      .from("inscripciones")
+      .select("fk_curso")
+      .in("fk_curso", rows.map((row) => row.id_curso))
+      .in("fk_estado_inscripcion", stateIds)
+      .eq("activo", true);
+    if (error) throw databaseFailure();
+
+    const counts = new Map<string, number>();
+    for (const enrollment of (data ?? []) as Array<{ fk_curso: string }>) {
+      counts.set(enrollment.fk_curso, (counts.get(enrollment.fk_curso) ?? 0) + 1);
+    }
+
+    const ranked = [...rows].sort((left, right) => {
+      const enrollmentDifference =
+        (counts.get(right.id_curso) ?? 0) - (counts.get(left.id_curso) ?? 0);
+      if (enrollmentDifference !== 0) return enrollmentDifference;
+      const rightPublished = right.fecha_publicacion ? Date.parse(right.fecha_publicacion) : 0;
+      const leftPublished = left.fecha_publicacion ? Date.parse(left.fecha_publicacion) : 0;
+      if (rightPublished !== leftPublished) return rightPublished - leftPublished;
+      return left.id_curso.localeCompare(right.id_curso);
+    });
+
+    return hydrateCourses(ranked.slice(0, Math.max(1, Math.min(limit, 5))));
   },
 
   async listCoursesByIds(courseIds) {

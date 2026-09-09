@@ -60,6 +60,7 @@ interface CourseRow {
   fecha_publicacion: string | null;
   fecha_creacion: string;
   fecha_actualizacion: string;
+  fk_organizacion: string | null;
 }
 
 interface CourseAssignmentRow {
@@ -78,6 +79,8 @@ export interface ManagedCategory {
 export interface AdministrationRepository {
   listUsers(input: UserListQuery): Promise<{ records: ManagedUser[]; total: number }>;
   setUserRoles(targetUserId: string, roleNames: string[], actorUserId: string): Promise<void>;
+  setUserActive(targetUserId: string, active: boolean): Promise<ManagedUser | null>;
+  hasAnotherActiveAdmin(targetUserId: string): Promise<boolean>;
   findUser(userId: string): Promise<ManagedUser | null>;
   listInstructors(): Promise<ManagedInstructor[]>;
   upsertInstructor(
@@ -87,6 +90,7 @@ export interface AdministrationRepository {
     actorUserId: string
   ): Promise<void>;
   findInstructor(userId: string): Promise<ManagedInstructor | null>;
+  listCategories(): Promise<ManagedCategory[]>;
   createCategory(input: CreateCategoryInput & { slug: string }, actorUserId: string): Promise<ManagedCategory>;
   updateCategory(
     categoryId: number,
@@ -113,6 +117,7 @@ export interface AdministrationRepository {
     instructorId: string,
     actorUserId: string
   ): Promise<void>;
+  assignCourseCreator(courseId: string, instructorId: string): Promise<void>;
   isInstructorAssigned(courseId: string, instructorId: string): Promise<boolean>;
   courseContentStats(courseId: string): Promise<{ modules: number; lessons: number }>;
   transitionCourse(
@@ -145,11 +150,13 @@ const COURSE_COLUMNS = [
   "fecha_publicacion",
   "fecha_creacion",
   "fecha_actualizacion",
+  "fk_organizacion",
 ].join(",");
 
 const roleToDatabase: Record<AppRole, string> = {
   student: "Alumno",
   instructor: "Instructor",
+  moderator: "Moderador",
   admin: "Administrador",
 };
 
@@ -158,6 +165,7 @@ const statusToDatabase: Record<CourseWorkflowStatus, string> = {
   review: "En revisión",
   published: "Publicado",
   archived: "Archivado",
+  moderated: "Dado de baja por moderación",
 };
 
 const levelToDatabase = {
@@ -175,6 +183,7 @@ const modalityToDatabase = {
 function databaseRole(name: string | undefined): AppRole {
   const normalized = name?.trim().toLowerCase();
   if (normalized === "administrador") return "admin";
+  if (normalized === "moderador") return "moderator";
   if (normalized === "instructor") return "instructor";
   return "student";
 }
@@ -184,6 +193,7 @@ function workflowStatus(name: string | undefined): CourseWorkflowStatus {
   if (normalized === "en revisión") return "review";
   if (normalized === "publicado") return "published";
   if (normalized === "archivado") return "archived";
+  if (normalized === "dado de baja por moderación") return "moderated";
   return "draft";
 }
 
@@ -364,8 +374,11 @@ async function hydrateCourses(rows: CourseRow[]): Promise<ManagedCourse[]> {
   const languageIds = unique(rows.map((row) => row.fk_idioma));
   const statusIds = unique(rows.map((row) => row.fk_estado_curso));
   const courseIds = rows.map((row) => row.id_curso);
+  const organizationIds = unique(
+    rows.map((row) => row.fk_organizacion).filter((id): id is string => Boolean(id))
+  );
 
-  const [levelsResult, modalitiesResult, languagesResult, statusesResult, assignmentsResult] =
+  const [levelsResult, modalitiesResult, languagesResult, statusesResult, assignmentsResult, organizationsResult] =
     await Promise.all([
       supabaseAdmin.from("niveles").select("id_nivel,nombre").in("id_nivel", levelIds),
       supabaseAdmin
@@ -383,9 +396,12 @@ async function hydrateCourses(rows: CourseRow[]): Promise<ManagedCourse[]> {
         .in("fk_curso", courseIds)
         .eq("activo", true)
         .eq("instructor_principal", true),
+      organizationIds.length
+        ? supabaseAdmin.from("organizaciones").select("id_organizacion,nombre").in("id_organizacion", organizationIds)
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
-  const results = [levelsResult, modalitiesResult, languagesResult, statusesResult, assignmentsResult];
+  const results = [levelsResult, modalitiesResult, languagesResult, statusesResult, assignmentsResult, organizationsResult];
   const failed = results.find((result) => result.error)?.error;
   if (failed) throw mappedDatabaseError(failed);
 
@@ -423,6 +439,11 @@ async function hydrateCourses(rows: CourseRow[]): Promise<ManagedCourse[]> {
     ])
   );
   const assignmentByCourse = new Map(assignments.map((row) => [row.fk_curso, row.fk_usuario]));
+  const organizations = new Map(
+    ((organizationsResult.data ?? []) as Array<{ id_organizacion: string; nombre: string }>).map(
+      (row) => [row.id_organizacion, row.nombre]
+    )
+  );
   const users = new Map(
     ((usersResult.data ?? []) as unknown as UserRow[]).map((row) => [row.id_usuario, row])
   );
@@ -448,6 +469,9 @@ async function hydrateCourses(rows: CourseRow[]): Promise<ManagedCourse[]> {
       price: Number(row.cuota_recuperacion),
       certificateEnabled: row.permite_certificado,
       requiresApproval: row.requiere_aprobacion,
+      organization: row.fk_organizacion
+        ? { id: row.fk_organizacion, name: organizations.get(row.fk_organizacion) ?? "Organización" }
+        : null,
       status: workflowStatus(statuses.get(row.fk_estado_curso)),
       active: row.activo,
       instructor: instructor ? { id: instructor.id_usuario, name: fullName(instructor) } : null,
@@ -538,6 +562,48 @@ export const administrationRepository: AdministrationRepository = {
     if (error) throw mappedDatabaseError(error);
   },
 
+
+  async setUserActive(targetUserId, active) {
+    const { data, error } = await supabaseAdmin
+      .from("usuarios")
+      .update({ activo: active, fecha_actualizacion: new Date().toISOString() })
+      .eq("id_usuario", targetUserId)
+      .select("id_usuario,nombres,apellido_paterno,apellido_materno,correo,activo")
+      .maybeSingle();
+    if (error) throw mappedDatabaseError(error);
+    if (!data) return null;
+    const user = data as unknown as UserRow;
+    const roles = await rolesByUsers([targetUserId]);
+    return { id: user.id_usuario, fullName: fullName(user), email: user.correo, active: user.activo, roles: roles.get(targetUserId) ?? [] };
+  },
+
+  async hasAnotherActiveAdmin(targetUserId) {
+    const { data: role, error: roleError } = await supabaseAdmin
+      .from("roles")
+      .select("id_rol")
+      .eq("nombre", "Administrador")
+      .eq("activo", true)
+      .maybeSingle();
+    if (roleError) throw mappedDatabaseError(roleError);
+    if (!role) return false;
+    const { data: assignments, error: assignmentError } = await supabaseAdmin
+      .from("usuarios_roles")
+      .select("fk_usuario")
+      .eq("fk_rol", (role as { id_rol: string }).id_rol)
+      .eq("activo", true)
+      .neq("fk_usuario", targetUserId);
+    if (assignmentError) throw mappedDatabaseError(assignmentError);
+    const ids = ((assignments ?? []) as Array<{ fk_usuario: string }>).map((row) => row.fk_usuario);
+    if (ids.length === 0) return false;
+    const { count, error } = await supabaseAdmin
+      .from("usuarios")
+      .select("id_usuario", { count: "exact", head: true })
+      .in("id_usuario", ids)
+      .eq("activo", true);
+    if (error) throw mappedDatabaseError(error);
+    return (count ?? 0) > 0;
+  },
+
   async findUser(userId) {
     const { data, error } = await supabaseAdmin
       .from("usuarios")
@@ -574,9 +640,11 @@ export const administrationRepository: AdministrationRepository = {
     const users = new Map(
       ((usersData ?? []) as unknown as UserRow[]).map((user) => [user.id_usuario, user])
     );
+    const roles = await rolesByUsers(profiles.map((profile) => profile.fk_usuario));
     return profiles.flatMap((profile) => {
       const user = users.get(profile.fk_usuario);
-      return user
+      const activeRoles = roles.get(profile.fk_usuario) ?? [];
+      return user && activeRoles.includes("instructor") && !activeRoles.includes("moderator")
         ? [
             {
               id: user.id_usuario,
@@ -604,6 +672,27 @@ export const administrationRepository: AdministrationRepository = {
   async findInstructor(userId) {
     const instructors = await this.listInstructors();
     return instructors.find((instructor) => instructor.id === userId) ?? null;
+  },
+
+  async listCategories() {
+    const { data, error } = await supabaseAdmin
+      .from("categorias")
+      .select("id_categoria,nombre,slug,descripcion,activo")
+      .order("nombre");
+    if (error) throw mappedDatabaseError(error);
+    return ((data ?? []) as Array<{
+      id_categoria: number;
+      nombre: string;
+      slug: string;
+      descripcion: string | null;
+      activo: boolean;
+    }>).map((row) => ({
+      id: row.id_categoria,
+      name: row.nombre,
+      slug: row.slug,
+      description: row.descripcion ?? "",
+      active: row.activo,
+    }));
   },
 
   async createCategory(input, actorUserId) {
@@ -770,6 +859,7 @@ export const administrationRepository: AdministrationRepository = {
       .insert({
         ...courseValues(input),
         ...foreignKeys,
+        fk_organizacion: input.organizationId ?? null,
         slug: input.slug,
         activo: true,
         creado_por: actorUserId,
@@ -804,6 +894,18 @@ export const administrationRepository: AdministrationRepository = {
       p_course_id: courseId,
       p_instructor_user: instructorId,
       p_actor_user: actorUserId,
+    });
+    if (error) throw mappedDatabaseError(error);
+  },
+
+  async assignCourseCreator(courseId, instructorId) {
+    const { error } = await supabaseAdmin.from("cursos_instructores").insert({
+      fk_curso: courseId,
+      fk_usuario: instructorId,
+      instructor_principal: true,
+      activo: true,
+      fecha_asignacion: new Date().toISOString(),
+      asignado_por: instructorId,
     });
     if (error) throw mappedDatabaseError(error);
   },
@@ -851,9 +953,11 @@ export const administrationRepository: AdministrationRepository = {
     };
     if (nextStatus === "published") {
       values.fecha_publicacion = new Date().toISOString();
-      values.activo = true;
     }
-    if (nextStatus === "archived") values.activo = false;
+    values.activo = nextStatus !== "archived" && nextStatus !== "moderated";
+    if (currentStatus === "archived" && nextStatus === "draft") {
+      values.fecha_publicacion = null;
+    }
 
     const { data, error } = await supabaseAdmin
       .from("cursos")

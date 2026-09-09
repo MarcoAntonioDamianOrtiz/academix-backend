@@ -14,12 +14,19 @@ const sharedOptions = {
   },
 };
 
-export function createRateLimiter(limit: number, identifier: string) {
-  return rateLimit({ ...sharedOptions, limit, identifier });
+export function createRateLimiter(
+  limit: number,
+  identifier: string,
+  options: { skipSuccessfulRequests?: boolean } = {}
+) {
+  return rateLimit({ ...sharedOptions, limit, identifier, ...options });
 }
 
 /** Límite general por proceso/IP para toda la API. */
 export const apiRateLimiter = createRateLimiter(env.RATE_LIMIT_MAX, "academix-api");
 
 /** Límite adicional para operaciones públicas sensibles de autenticación. */
-export const authRateLimiter = createRateLimiter(env.AUTH_RATE_LIMIT_MAX, "academix-auth");
+export const authRateLimiter = createRateLimiter(env.AUTH_RATE_LIMIT_MAX, "academix-auth", {
+  // Solo los intentos fallidos deben agotar la cuota sensible de autenticación.
+  skipSuccessfulRequests: true,
+});

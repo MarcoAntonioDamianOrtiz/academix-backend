@@ -6,6 +6,7 @@ vi.mock("../src/services/catalog.service", () => ({
   catalogService: {
     listCategories: vi.fn(),
     listCourses: vi.fn(),
+    listFeaturedCourses: vi.fn(),
     getCourse: vi.fn(),
     listRelatedCourses: vi.fn(),
     getInstructor: vi.fn(),
@@ -149,4 +150,14 @@ describe("catálogo público", () => {
     expect(response.status).toBe(200);
     expect(response.body.data[0].id).toBe(course.id);
   });
+  it("expone los cinco cursos destacados sin autenticación", async () => {
+    vi.mocked(catalogService.listFeaturedCourses).mockResolvedValue([course]);
+
+    const response = await request(createApp()).get("/api/v1/courses/featured");
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual([course]);
+    expect(catalogService.listFeaturedCourses).toHaveBeenCalledOnce();
+  });
+
 });

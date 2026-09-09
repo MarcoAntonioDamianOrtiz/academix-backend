@@ -207,14 +207,28 @@ Supabase durante la validación del JWT.
 | POST | `/admin/categories` | admin | Crea categoría activa. |
 | PATCH | `/admin/categories/:categoryId` | admin | Actualiza o desactiva categoría. |
 | GET | `/admin/course-options` | admin | Categorías, niveles, modalidades, idiomas y estados. |
+| GET | `/admin/categories` | admin | Lista categorías activas e inactivas. |
 | GET, POST | `/admin/courses` | admin | Lista o crea un borrador. |
 | PATCH | `/admin/courses/:courseId` | admin | Actualiza un curso no archivado. |
 | PUT | `/admin/courses/:courseId/instructor` | admin | Asigna `{ instructorId }` como principal. |
 | POST | `/admin/courses/:courseId/publish` | admin | Publica un curso en revisión y completo. |
 | POST | `/admin/courses/:courseId/archive` | admin | Archivado lógico, sin borrar datos. |
+| POST | `/admin/courses/:courseId/restore` | admin | Restaura el curso archivado como borrador activo. |
 | GET | `/instructor/courses` | instructor | Cursos asignados. |
+| POST | `/instructor/courses` | instructor | Crea un borrador propio y se asigna como principal. |
 | PATCH | `/instructor/courses/:courseId` | instructor | Edita solo su borrador asignado. |
 | POST | `/instructor/courses/:courseId/submit` | instructor | Envía borrador a revisión. |
+
+### Solicitudes para instructor
+
+| Método | Ruta | Rol | Uso |
+|---|---|---|---|
+| GET | `/users/me/instructor-application` | autenticado | Consulta la solicitud más reciente. |
+| POST | `/users/me/instructor-application` | Alumno | Envía `{ enrollmentId, credentialReference }`. |
+| GET | `/admin/instructor-applications?status=pending` | Administrador | Lista solicitudes. |
+| PATCH | `/admin/instructor-applications/:applicationId` | Administrador | Aprueba o rechaza; al aprobar requiere `specialty` y `experienceYears`. |
+
+La aprobación es la única operación que concede el perfil y rol de instructor.
 
 `AppRole` admite `student`, `instructor` y `admin`. Los estados son `draft`,
 `review`, `published` y `archived`. El backend protege al último administrador,
@@ -350,6 +364,17 @@ internos. Una credencial inexistente o revocada responde
 `404 CERTIFICATE_NOT_FOUND`.
 
 ## Códigos esperados
+
+## Contacto público
+
+| Método | Ruta | Auth | Respuesta `data` |
+|---|---|---:|---|
+| POST | `/contact/messages` | No | `{ id, submittedAt }` |
+
+Recibe `fullName` (2–160), un `email` válido, `subject` (3–160) y `message`
+(12–4000). El límite específico es de cinco solicitudes por ventana e IP.
+Express valida y guarda el mensaje con su cliente administrativo; el navegador
+no conoce Supabase y la tabla no concede acceso a `anon` ni `authenticated`.
 
 - `200`: consulta o actualización correcta.
 - `201`: inscripción, registro o reseña creada.
